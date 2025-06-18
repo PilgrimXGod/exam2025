@@ -2,68 +2,79 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>WebXR: Архітектура Систем</title>
+    <title>AR: Архітектура Систем (WebXR Inline)</title>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    
+    <!-- Підключення бібліотек з CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.11.0/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.149.0/examples/js/loaders/GLTFLoader.js"></script>
+    
+    <!-- Наш основний скрипт, завантажується після розбору сторінки -->
+    <script src="./src/main.js" defer></script>
+    
     <style>
-        body { margin: 0; background-color: #000; }
-        canvas { display: block; }
-        #ar-button-container {
-            position: absolute;
-            bottom: 20px;
-            width: 100%;
-            text-align: center;
+        body {
+            margin: 0;
+            overflow: hidden; /* Забороняємо прокрутку */
         }
-        #ar-button {
-            padding: 12px 24px;
-            border: none;
-            border-radius: 8px;
-            background: rgba(255, 255, 255, 0.9);
-            color: #333;
-            font-size: 18px;
-            cursor: pointer;
-            font-weight: bold;
+        #video-background {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover; /* Розтягує відео на весь екран, зберігаючи пропорції */
+            z-index: -2; /* Розміщуємо найнижче */
+        }
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: -1; /* Полотно для 3D знаходиться над відео, але під UI */
+            background: transparent !important; /* Робимо полотно прозорим */
         }
         #ui-container {
             position: absolute;
-            top: 20px;
-            left: 20px;
-            background: rgba(0,0,0,0.6);
-            padding: 10px;
-            border-radius: 8px;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 90%;
+            max-width: 400px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 12px;
             color: white;
-            font-family: sans-serif;
-            display: none; /* Спочатку приховано */
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            text-align: center;
+            box-sizing: border-box;
         }
         #ui-container button {
-            padding: 8px 12px;
+            padding: 10px 15px;
             width: 100%;
-            border-radius: 5px;
+            border-radius: 8px;
             border: none;
             background-color: #3498db;
             color: white;
             font-weight: bold;
             margin-bottom: 10px;
+            cursor: pointer;
+        }
+        #ui-container p {
+            margin: 5px 0;
         }
     </style>
 </head>
 <body>
-    <div id="ar-button-container">
-        <button id="ar-button">Увійти в AR</button>
-    </div>
-
+    <!-- Елемент для відображення відео з камери на фоні -->
+    <video id="video-background" autoplay playsinline muted></video>
+    
+    <!-- Контейнер для елементів керування симуляцією -->
     <div id="ui-container">
         <button id="simulate-load-btn">Симулювати навантаження</button>
         <p>Статус: <span id="status-text">Очікування...</span></p>
         <p>Прогноз: <span id="prediction-text">-</span></p>
     </div>
-
-    <!-- Бібліотеки. Ми будемо завантажувати їх з CDN для простоти. -->
-    <script src="https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.149.0/examples/js/loaders/GLTFLoader.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.11.0/dist/tf.min.js"></script>
-    
-    <!-- Наш основний скрипт. Важливо, що type="module" -->
-    <script type="module" src="./src/main.js"></script>
 </body>
 </html>
