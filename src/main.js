@@ -1,12 +1,12 @@
-// Файл: src/main.js (Версія "Все в одному")
+// Файл: src/main.js (Версія "Все в одному" з WebXR 'inline' та правильним GLTFLoader)
 
-(function() { // Ізолюємо весь код
+(function() {
     'use strict';
 
     // ===============================================================
-    // КОД З ФАЙЛУ scaling-model.js ТЕПЕР ЗНАХОДИТЬСЯ ТУТ
+    // КОД ML-МОДЕЛІ
     // ===============================================================
-    let mlModel; // Змінна для моделі тепер тут
+    let mlModel;
     
     async function createAndTrainModel() {
         console.log("Починаємо створення та тренування ML-моделі...");
@@ -15,7 +15,6 @@
         model.add(tf.layers.dense({ units: 1 }));
         model.compile({ optimizer: 'adam', loss: 'meanSquaredError' });
 
-        // Генерація даних для тренування
         const data = [];
         for (let i = 0; i < 200; i++) {
             const value = Math.sin(i / 15) * 0.5 + 0.5 + (Math.random() - 0.5) * 0.1;
@@ -40,7 +39,7 @@
         console.log("ML-модель успішно натренована!");
         xs.dispose(); ys.dispose(); xs_reshaped.dispose();
         
-        mlModel = model; // Зберігаємо натреновану модель
+        mlModel = model;
     }
 
     async function predictLoad(sequence) {
@@ -55,7 +54,7 @@
 
 
     // ===============================================================
-    // ОСНОВНИЙ КОД AR-ДОДАТКУ
+    // ОСНОВНИЙ КОД AR-ДОДАТКУ (WebXR 'inline')
     // ===============================================================
     let scene, camera, renderer;
     let serverRackModel = null, containers = [];
@@ -67,46 +66,59 @@
     const simButton = document.getElementById('simulate-load-btn');
     const statusText = document.getElementById('status-text');
     const predictionText = document.getElementById('prediction-text');
+    const permissionButton = document.getElementById('permission-button');
 
-    init();
-
-    async function init() {
+    function init() {
         scene = new THREE.Scene();
         camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.z = 0.1;
 
         const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 2);
         scene.add(light);
-        const dirLight = new THREE.DirectionalLight(0xffffff, 1);
-        scene.add(dirLight);
-
+        
         renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
         renderer.setPixelRatio(window.devicePixelRatio);
         renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.xr.enabled = true;
+        renderer.xr.enabled = true; // Вмикаємо WebXR
         document.body.appendChild(renderer.domElement);
 
+        permissionButton.addEventListener('click', startExperience);
+        
+        window.addEventListener('resize', onWindowResize);
+    }
+
+    async function startExperience() {
+        permissionButton.style.display = 'none';
+        uiContainer.style.display = 'block';
+
+        // 1. Запит до камери
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
             document.getElementById('video-background').srcObject = stream;
         } catch (e) {
-            alert("Помилка доступу до камери. Будь ласка, надайте дозвіл.");
+            alert("Помилка доступу до камери. Надайте дозвіл.");
+            return;
         }
 
+        // 2. Запуск WebXR сесії в режимі 'inline'
         if (navigator.xr) {
             try {
                 const session = await navigator.xr.requestSession('inline');
                 renderer.xr.setSession(session);
             } catch(e) {
-                alert("Не вдалося запустити WebXR в inline режимі.");
+                // Ця помилка з 'requestReferenceSpace' може знову з'явитися.
+                // Якщо так, це означає, що WebXR несумісний з пристроєм в будь-якому вигляді.
+                console.error("Помилка запуску WebXR 'inline':", e);
+                alert("Не вдалося запустити WebXR. Ваш пристрій може бути несумісним.");
+                return; // Зупиняємо виконання, якщо WebXR не запустився
             }
         } else {
             alert("WebXR не підтримується на цьому пристрої.");
+            return;
         }
         
+        // 3. Запуск логіки
         statusText.textContent = "Тренування ML-моделі...";
-        // Тепер просто викликаємо функцію, яка знаходиться в цьому ж файлі
-        await createAndTrainModel(); 
+        await createAndTrainModel();
         placeSceneInFrontOfCamera();
 
         simButton.onclick = () => {
@@ -115,9 +127,8 @@
         };
         
         renderer.setAnimationLoop(render);
-        window.addEventListener('resize', onWindowResize);
     }
-
+    
     function onWindowResize() {
         camera.aspect = window.innerWidth / window.innerHeight;
         camera.updateProjectionMatrix();
@@ -126,6 +137,7 @@
 
     function placeSceneInFrontOfCamera() {
         statusText.textContent = "Завантаження 3D-моделей...";
+        // ВИПРАВЛЕНО: GLTFLoader тепер є в об'єкті THREE, оскільки ми підключили скрипт.
         const loader = new THREE.GLTFLoader();
         loader.load('./assets/models/server_rack.glb', (gltf) => {
             serverRackModel = gltf.scene;
@@ -178,5 +190,7 @@
         handleSimulation();
         renderer.render(scene, camera);
     }
+
+    init();
 
 })();

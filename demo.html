@@ -1,14 +1,15 @@
+<!-- Файл: demo.html (Версія для WebXR 'inline' з правильним GLTFLoader) -->
 <!DOCTYPE html>
 <html>
 <head>
-    <title>AR: Архітектура Систем</title>
+    <title>AR: Архітектура Систем (WebXR Inline)</title>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     
     <!-- Підключення бібліотек -->
     <script src="https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.149.0/examples/js/loaders/GLTFLoader.js"></script> <!-- ОСЬ ЦЕЙ РЯДОК ВАЖЛИВИЙ -->
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.11.0/dist/tf.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.149.0/examples/js/loaders/GLTFLoader.js"></script>
     
     <style>
         body { margin: 0; overflow: hidden; }
@@ -17,17 +18,22 @@
         #ui-container { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); width: 90%; max-width: 400px; background: rgba(0, 0, 0, 0.7); padding: 15px; border-radius: 12px; color: white; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; text-align: center; box-sizing: border-box; }
         #ui-container button { padding: 10px 15px; width: 100%; border-radius: 8px; border: none; background-color: #3498db; color: white; font-weight: bold; margin-bottom: 10px; cursor: pointer; }
         #ui-container p { margin: 5px 0; }
+        /* Кнопка для запиту дозволу, може знадобитись */
+        #permission-button { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); padding: 20px; font-size: 18px; z-index: 10; }
     </style>
 </head>
 <body>
     <video id="video-background" autoplay playsinline muted></video>
     
-    <div id="ui-container">
+    <div id="ui-container" style="display: none;">
         <button id="simulate-load-btn">Симулювати навантаження</button>
         <p>Статус: <span id="status-text">Очікування...</span></p>
         <p>Прогноз: <span id="prediction-text">-</span></p>
     </div>
 
+    <button id="permission-button">Натисніть, щоб почати</button>
+
+    <!-- Підключаємо наш єдиний скрипт -->
     <script src="./src/main.js"></script>
 </body>
 </html>
