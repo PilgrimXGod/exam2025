@@ -1,4 +1,3 @@
-<!-- Файл: demo.html (Версія для PC-симуляції) -->
 <!DOCTYPE html>
 <html>
 <head>
@@ -6,42 +5,86 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     
-    <!-- Підключення бібліотек -->
+    <!-- Підключення бібліотек з CDN -->
     <script src="https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.149.0/examples/js/loaders/GLTFLoader.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.149.0/examples/js/controls/OrbitControls.js"></script> <!-- ДОДАНО КЕРУВАННЯ МИШКОЮ -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.149.0/examples/js/controls/OrbitControls.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.11.0/dist/tf.min.js"></script>
     
     <style>
-        body { margin: 0; overflow: hidden; background-color: #f0f0f0; } /* Змінили фон */
-        canvas { display: block; } /* Простий стиль для canvas */
+        /* Загальні стилі */
+        body { 
+            margin: 0; 
+            overflow: hidden; 
+            background-color: #f0f0f0; 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+        
+        /* Стиль для Canvas, де рендериться 3D-сцена */
+        canvas { 
+            display: block; 
+        } 
+        
+        /* Контейнер для інтерфейсу користувача */
         #ui-container {
             position: absolute;
-            top: 20px; /* Перемістимо UI вгору для зручності на ПК */
+            top: 20px;
             right: 20px;
             width: 300px;
-            background: rgba(255, 255, 255, 0.9);
-            padding: 15px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 20px;
             border-radius: 12px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            box-shadow: 0 4px 25px rgba(0, 0, 0, 0.1);
             color: #333;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             box-sizing: border-box;
+            border: 1px solid #e0e0e0;
         }
-        #ui-container button { padding: 10px 15px; width: 100%; border-radius: 8px; border: 1px solid #ddd; background-color: #007bff; color: white; font-weight: bold; margin-bottom: 10px; cursor: pointer; transition: background-color 0.2s; }
-        #ui-container button:hover { background-color: #0056b3; }
-        #ui-container p { margin: 5px 0; }
+        
+        /* Стиль для кнопки симуляції */
+        #ui-container button { 
+            padding: 12px 15px; 
+            width: 100%; 
+            border-radius: 8px; 
+            border: none;
+            background-color: #007bff; 
+            color: white; 
+            font-weight: bold; 
+            margin-bottom: 15px; 
+            cursor: pointer; 
+            transition: background-color 0.2s, transform 0.1s;
+        }
+        
+        #ui-container button:hover { 
+            background-color: #0056b3; 
+        }
+        
+        #ui-container button:active {
+            transform: scale(0.98);
+        }
+        
+        /* Стиль для текстових полів */
+        #ui-container p { 
+            margin: 8px 0;
+            font-size: 14px;
+            line-height: 1.4;
+        }
+        
+        #ui-container p span {
+            font-weight: bold;
+            color: #0056b3;
+        }
     </style>
 </head>
 <body>
-    <!-- UI залишається, але тепер він буде збоку -->
+    <!-- Інтерфейс користувача -->
     <div id="ui-container">
         <button id="simulate-load-btn">Симулювати навантаження</button>
         <p>Статус: <span id="status-text">Очікування...</span></p>
         <p>Прогноз: <span id="prediction-text">-</span></p>
     </div>
 
-    <!-- Підключаємо наш єдиний скрипт -->
-    <script src="./src/main.js"></script>
+    <!-- Підключаємо наш головний скрипт. 'defer' гарантує,
+         що він виконається після того, як всі бібліотеки вище будуть завантажені. -->
+    <script src="./src/main.js" defer></script>
 </body>
 </html>
