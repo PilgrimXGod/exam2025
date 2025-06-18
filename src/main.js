@@ -1,7 +1,14 @@
-// Файл: src/main.js (Версія для PC-симуляції з керуванням мишкою)
+// Файл: src/main.js (Версія для PC з перевіркою завантаження)
 
-(function() {
+// Ми обгорнемо весь код у слухач події DOMContentLoaded
+document.addEventListener('DOMContentLoaded', (event) => {
     'use strict';
+
+    // Перевіряємо, чи завантажилися всі компоненти Three.js
+    if (typeof THREE.GLTFLoader === 'undefined' || typeof THREE.OrbitControls === 'undefined') {
+        console.error("Помилка: Додаткові компоненти Three.js (GLTFLoader або OrbitControls) не завантажилися. Перевірте підключення скриптів у HTML.");
+        return;
+    }
 
     // ===============================================================
     // КОД ML-МОДЕЛІ (без змін)
@@ -52,7 +59,7 @@
     // ===============================================================
     // ОСНОВНИЙ КОД 3D-СЦЕНИ
     // ===============================================================
-    let scene, camera, renderer, controls; // Додано controls
+    let scene, camera, renderer, controls;
     let serverRackModel = null, containers = [];
     let simulationActive = false, simulationTime = 0;
     const LOAD_THRESHOLD = 0.75;
@@ -66,35 +73,30 @@
     init();
 
     async function init() {
-        // 1. Сцена
         scene = new THREE.Scene();
-        scene.background = new THREE.Color(0xeeeeee); // Світло-сірий фон
-        scene.fog = new THREE.Fog(0xeeeeee, 10, 50); // Додамо туман для глибини
+        scene.background = new THREE.Color(0xeeeeee);
+        scene.fog = new THREE.Fog(0xeeeeee, 10, 50);
 
-        // 2. Камера
         camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.set(0, 1, 4); // Позиціонуємо камеру далі, щоб бачити всю сцену
+        camera.position.set(0, 1, 4);
 
-        // 3. Світло
         const light = new THREE.HemisphereLight(0xffffff, 0x444444, 1.5);
         scene.add(light);
         const dirLight = new THREE.DirectionalLight(0xffffff, 1);
         dirLight.position.set(5, 5, 5);
         scene.add(dirLight);
 
-        // 4. Рендерер
         renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setPixelRatio(window.devicePixelRatio);
         renderer.setSize(window.innerWidth, window.innerHeight);
         document.body.appendChild(renderer.domElement);
-
-        // 5. КЕРУВАННЯ МИШКОЮ (OrbitControls)
+        
+        // ПРАВИЛЬНИЙ ВИКЛИК КОНТРОЛІВ
         controls = new THREE.OrbitControls(camera, renderer.domElement);
-        controls.enableDamping = true; // Плавне обертання
-        controls.target.set(0, 0, 0); // Куди дивиться камера
+        controls.enableDamping = true;
+        controls.target.set(0, 0, 0);
         controls.update();
 
-        // 6. Запуск логіки
         statusText.textContent = "Тренування ML-моделі...";
         await createAndTrainModel();
         placeScene();
@@ -104,7 +106,6 @@
             simButton.textContent = simulationActive ? "Зупинити симуляцію" : "Симулювати навантаження";
         };
         
-        // 7. Головний цикл
         renderer.setAnimationLoop(render);
         window.addEventListener('resize', onWindowResize);
     }
@@ -117,10 +118,9 @@
 
     function placeScene() {
         statusText.textContent = "Завантаження 3D-моделей...";
-        const loader = new THREE.GLTFLoader();
+        const loader = new THREE.GLTFLoader(); // Правильний виклик
         loader.load('./assets/models/server_rack.glb', (gltf) => {
             serverRackModel = gltf.scene;
-            // Розміщуємо модель в центрі сцени
             serverRackModel.position.set(0, 0, 0);
             serverRackModel.scale.set(0.1, 0.1, 0.1);
             scene.add(serverRackModel);
@@ -167,9 +167,9 @@
     }
 
     function render() {
-        controls.update(); // Оновлюємо позицію камери при обертанні
+        controls.update();
         handleSimulation();
         renderer.render(scene, camera);
     }
 
-})();
+});
