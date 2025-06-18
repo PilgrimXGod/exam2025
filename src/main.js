@@ -50,8 +50,10 @@ async function init() {
     arButton.onclick = async () => {
         if (navigator.xr) {
             try {
-                const session = await navigator.xr.requestSession('immersive-ar', { 
-                    requiredFeatures: ['hit-test'] // Запитуємо функцію пошуку поверхонь
+                const session = await navigator.xr.requestSession('immersive-ar', {
+                    requiredFeatures: ['hit-test'],
+                    optionalFeatures: ['dom-overlay'], // Запитуємо DOM Overlay
+                    domOverlay: { root: document.body } // Вказуємо, що HTML-елементи в body
                 });
                 renderer.xr.setSession(session);
                 onSessionStarted();
