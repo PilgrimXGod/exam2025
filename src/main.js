@@ -31,6 +31,7 @@ init();
 async function init() {
     // Створення сцени
     scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xabcdef); // Додай цей рядок
     camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
 
     // Додаємо м'яке освітлення
@@ -39,7 +40,7 @@ async function init() {
     scene.add(light);
     
     // Налаштування рендерера
-    renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false }); // Тимчасово прибрали alpha
     renderer.setPixelRatio(window.devicePixelRatio);
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.xr.enabled = true; // Вмикаємо підтримку WebXR
