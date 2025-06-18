@@ -1,20 +1,68 @@
-// Файл: src/main.js
+// Файл: src/main.js (Версія "Все в одному")
 
-(function() { // Ізолюємо код, щоб не створювати глобальних змінних
+(function() { // Ізолюємо весь код
     'use strict';
 
-    // Отримуємо доступ до функцій через глобальний об'єкт
-    const createAndTrainModel = window.MLUtils.createAndTrainModel;
-    const predictLoad = window.MLUtils.predictLoad;
+    // ===============================================================
+    // КОД З ФАЙЛУ scaling-model.js ТЕПЕР ЗНАХОДИТЬСЯ ТУТ
+    // ===============================================================
+    let mlModel; // Змінна для моделі тепер тут
+    
+    async function createAndTrainModel() {
+        console.log("Починаємо створення та тренування ML-моделі...");
+        let model = tf.sequential();
+        model.add(tf.layers.lstm({ units: 16, inputShape: [10, 1] }));
+        model.add(tf.layers.dense({ units: 1 }));
+        model.compile({ optimizer: 'adam', loss: 'meanSquaredError' });
 
-    // --- Глобальні змінні для цього скрипта ---
+        // Генерація даних для тренування
+        const data = [];
+        for (let i = 0; i < 200; i++) {
+            const value = Math.sin(i / 15) * 0.5 + 0.5 + (Math.random() - 0.5) * 0.1;
+            data.push(Math.max(0, Math.min(1, value)));
+        }
+        const xs_data = [], ys_data = [];
+        for (let i = 0; i < data.length - 10; i++) {
+            xs_data.push(data.slice(i, i + 10));
+            ys_data.push(data[i + 10]);
+        }
+        const xs = tf.tensor2d(xs_data);
+        const ys = tf.tensor1d(ys_data);
+        const xs_reshaped = xs.reshape([xs.shape[0], xs.shape[1], 1]);
+
+        await model.fit(xs_reshaped, ys, {
+            epochs: 40,
+            callbacks: {
+                onEpochEnd: (epoch, logs) => console.log(`Епоха ${epoch + 1}: Втрати = ${logs.loss.toFixed(4)}`)
+            }
+        });
+
+        console.log("ML-модель успішно натренована!");
+        xs.dispose(); ys.dispose(); xs_reshaped.dispose();
+        
+        mlModel = model; // Зберігаємо натреновану модель
+    }
+
+    async function predictLoad(sequence) {
+        if (!mlModel) { throw new Error("Модель ще не натренована!"); }
+        if (sequence.length !== 10) { return null; }
+        return tf.tidy(() => {
+            const input = tf.tensor2d([sequence]).reshape([1, 10, 1]);
+            const prediction = mlModel.predict(input);
+            return prediction.dataSync()[0];
+        });
+    }
+
+
+    // ===============================================================
+    // ОСНОВНИЙ КОД AR-ДОДАТКУ
+    // ===============================================================
     let scene, camera, renderer;
     let serverRackModel = null, containers = [];
-    let mlModel, simulationActive = false, simulationTime = 0;
+    let simulationActive = false, simulationTime = 0;
     const LOAD_THRESHOLD = 0.75;
     let loadHistory = [];
 
-    // --- Елементи UI ---
     const uiContainer = document.getElementById('ui-container');
     const simButton = document.getElementById('simulate-load-btn');
     const statusText = document.getElementById('status-text');
@@ -42,7 +90,6 @@
             const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
             document.getElementById('video-background').srcObject = stream;
         } catch (e) {
-            console.error("Не вдалося отримати доступ до камери:", e);
             alert("Помилка доступу до камери. Будь ласка, надайте дозвіл.");
         }
 
@@ -58,10 +105,9 @@
         }
         
         statusText.textContent = "Тренування ML-моделі...";
-        createAndTrainModel().then(trainedModel => {
-            mlModel = trainedModel;
-            placeSceneInFrontOfCamera();
-        });
+        // Тепер просто викликаємо функцію, яка знаходиться в цьому ж файлі
+        await createAndTrainModel(); 
+        placeSceneInFrontOfCamera();
 
         simButton.onclick = () => {
             simulationActive = !simulationActive;
