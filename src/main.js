@@ -1,5 +1,6 @@
 // Файл: src/main.js
-import { createAndTrainModel, predictLoad } from './ml/scaling-model.js';
+// Отримуємо доступ до функцій через глобальний об'єкт MLModel
+const { createAndTrainModel, predictLoad } = window.MLModel;
 
 // --- Глобальні змінні ---
 let scene, camera, renderer;

@@ -11,7 +11,8 @@
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.11.0/dist/tf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.149.0/examples/js/loaders/GLTFLoader.js"></script>
     
-    <!-- Наш основний скрипт, завантажується після розбору сторінки -->
+    <!-- Спочатку підключаємо модель, потім основний скрипт -->
+    <script src="./src/ml/scaling-model.js"></script>
     <script src="./src/main.js" defer></script>
     
     <style>
