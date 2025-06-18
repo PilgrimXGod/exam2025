@@ -1,15 +1,13 @@
-// Файл: src/ml/scaling-model.js (Версія без модулів)
+// Файл: src/ml/scaling-model.js
 
-// Створюємо глобальний об'єкт, якщо його ще немає
-window.MLModel = window.MLModel || {};
-
-(function(ML) { // Самоізолююча функція, щоб не забруднювати глобальний простір
+// Створюємо простір імен на глобальному об'єкті window
+window.MLUtils = (function() {
+    'use strict';
 
     let model;
     const SEQUENCE_LENGTH = 10;
 
     function generateTrainingData() {
-        // ... код функції залишається без змін ...
         const data = [];
         for (let i = 0; i < 200; i++) {
             const value = Math.sin(i / 15) * 0.5 + 0.5 + (Math.random() - 0.5) * 0.1;
@@ -24,8 +22,7 @@ window.MLModel = window.MLModel || {};
         return { xs: tf.tensor2d(xs_data), ys: tf.tensor1d(ys_data) };
     }
 
-    // "Експортуємо" функцію, додаючи її до нашого глобального об'єкта
-    ML.createAndTrainModel = async function() {
+    async function createAndTrainModel() {
         console.log("Починаємо створення та тренування ML-моделі...");
         model = tf.sequential();
         model.add(tf.layers.lstm({ units: 16, inputShape: [SEQUENCE_LENGTH, 1] }));
@@ -52,14 +49,9 @@ window.MLModel = window.MLModel || {};
         return model;
     }
 
-    // "Експортуємо" другу функцію
-    ML.predictLoad = async function(sequence) {
-        if (!model) {
-            throw new Error("Модель ще не натренована!");
-        }
-        if (sequence.length !== SEQUENCE_LENGTH) {
-            return null;
-        }
+    async function predictLoad(sequence) {
+        if (!model) { throw new Error("Модель ще не натренована!"); }
+        if (sequence.length !== SEQUENCE_LENGTH) { return null; }
         return tf.tidy(() => {
             const input = tf.tensor2d([sequence]).reshape([1, SEQUENCE_LENGTH, 1]);
             const prediction = model.predict(input);
@@ -67,4 +59,10 @@ window.MLModel = window.MLModel || {};
         });
     }
 
-})(window.MLModel); // Передаємо наш глобальний об'єкт у функцію
+    // Повертаємо публічні функції
+    return {
+        createAndTrainModel: createAndTrainModel,
+        predictLoad: predictLoad
+    };
+
+})();

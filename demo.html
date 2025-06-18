@@ -1,81 +1,35 @@
-<!-- Файл: demo.html -->
 <!DOCTYPE html>
 <html>
 <head>
-    <title>AR: Архітектура Систем (WebXR Inline)</title>
+    <title>AR: Архітектура Систем</title>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     
-    <!-- Підключення бібліотек з CDN -->
+    <!-- Підключення бібліотек -->
     <script src="https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.11.0/dist/tf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.149.0/examples/js/loaders/GLTFLoader.js"></script>
     
-    <!-- Спочатку підключаємо модель, потім основний скрипт -->
-    <script src="./src/ml/scaling-model.js"></script>
-    <script src="./src/main.js" defer></script>
-    
     <style>
-        body {
-            margin: 0;
-            overflow: hidden; /* Забороняємо прокрутку */
-        }
-        #video-background {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            object-fit: cover; /* Розтягує відео на весь екран, зберігаючи пропорції */
-            z-index: -2; /* Розміщуємо найнижче */
-        }
-        canvas {
-            position: absolute;
-            top: 0;
-            left: 0;
-            z-index: -1; /* Полотно для 3D знаходиться над відео, але під UI */
-            background: transparent !important; /* Робимо полотно прозорим */
-        }
-        #ui-container {
-            position: absolute;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 90%;
-            max-width: 400px;
-            background: rgba(0, 0, 0, 0.7);
-            padding: 15px;
-            border-radius: 12px;
-            color: white;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            text-align: center;
-            box-sizing: border-box;
-        }
-        #ui-container button {
-            padding: 10px 15px;
-            width: 100%;
-            border-radius: 8px;
-            border: none;
-            background-color: #3498db;
-            color: white;
-            font-weight: bold;
-            margin-bottom: 10px;
-            cursor: pointer;
-        }
-        #ui-container p {
-            margin: 5px 0;
-        }
+        body { margin: 0; overflow: hidden; }
+        #video-background { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: -2; }
+        canvas { position: absolute; top: 0; left: 0; z-index: -1; background: transparent !important; }
+        #ui-container { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); width: 90%; max-width: 400px; background: rgba(0, 0, 0, 0.7); padding: 15px; border-radius: 12px; color: white; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; text-align: center; box-sizing: border-box; }
+        #ui-container button { padding: 10px 15px; width: 100%; border-radius: 8px; border: none; background-color: #3498db; color: white; font-weight: bold; margin-bottom: 10px; cursor: pointer; }
+        #ui-container p { margin: 5px 0; }
     </style>
 </head>
 <body>
-    <!-- Елемент для відображення відео з камери на фоні -->
     <video id="video-background" autoplay playsinline muted></video>
     
-    <!-- Контейнер для елементів керування симуляцією -->
     <div id="ui-container">
         <button id="simulate-load-btn">Симулювати навантаження</button>
         <p>Статус: <span id="status-text">Очікування...</span></p>
         <p>Прогноз: <span id="prediction-text">-</span></p>
     </div>
+
+    <!-- Підключаємо наші скрипти в правильному порядку -->
+    <script src="./src/ml/scaling-model.js"></script>
+    <script src="./src/main.js"></script>
 </body>
 </html>
