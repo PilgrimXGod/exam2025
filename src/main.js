@@ -45,8 +45,10 @@ async function init() {
         console.log("Натиснуто кнопку 'Увійти в AR'");
         if (navigator.xr) {
             try {
-                const session = await navigator.xr.requestSession('immersive-ar', { 
-                    requiredFeatures: ['hit-test']
+                const session = await navigator.xr.requestSession('immersive-ar', {
+                    // Ми не вимагаємо hit-test, а робимо його опціональним
+                    optionalFeatures: ['hit-test', 'dom-overlay'],
+                    domOverlay: { root: document.body }
                 });
                 console.log("AR-сесію успішно отримано.");
                 renderer.xr.setSession(session);
