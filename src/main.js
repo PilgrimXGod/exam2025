@@ -1,20 +1,19 @@
-// Файл: src/main.js
+// Файл: src/main.js (ОНОВЛЕНА ВЕРСІЯ З ДЕБАГГІНГОМ)
 
-// Імпортуємо функції з нашого ML-модуля
 import { createAndTrainModel, predictLoad } from './ml/scaling-model.js';
+
+console.log("Скрипт main.js завантажено.");
 
 // --- Глобальні змінні ---
 let scene, camera, renderer, controller;
-let reticle; // Об'єкт-індикатор для розміщення на поверхні
+let reticle;
 let hitTestSource = null;
 let hitTestSourceRequested = false;
-
-let serverRackModel = null; // Наша основна 3D-модель (серверна стійка)
-let containers = []; // Масив для 3D-моделей контейнерів
-
-let mlModel; // Тут буде зберігатись наша натренована модель
-const LOAD_THRESHOLD = 0.75; // Поріг навантаження для масштабування
-let loadHistory = []; // Історія значень навантаження для прогнозу
+let serverRackModel = null;
+let containers = [];
+let mlModel;
+const LOAD_THRESHOLD = 0.75;
+let loadHistory = [];
 let simulationActive = false;
 let simulationTime = 0;
 
@@ -25,59 +24,56 @@ const simButton = document.getElementById('simulate-load-btn');
 const statusText = document.getElementById('status-text');
 const predictionText = document.getElementById('prediction-text');
 
-// --- Ініціалізація ---
 init();
 
 async function init() {
-    // Створення сцени
+    console.log("init() викликано");
     scene = new THREE.Scene();
-    scene.background = new THREE.Color(0xabcdef); // Додай цей рядок
     camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
 
-    // Додаємо м'яке освітлення
     const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1.5);
     light.position.set(0.5, 1, 0.25);
     scene.add(light);
     
-    // Налаштування рендерера
-    renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false }); // Тимчасово прибрали alpha
+    renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.setPixelRatio(window.devicePixelRatio);
     renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.xr.enabled = true; // Вмикаємо підтримку WebXR
+    renderer.xr.enabled = true;
     document.body.appendChild(renderer.domElement);
     
-    // Обробник кнопки входу в AR
     arButton.onclick = async () => {
+        console.log("Натиснуто кнопку 'Увійти в AR'");
         if (navigator.xr) {
             try {
-                const session = await navigator.xr.requestSession('immersive-ar', {
-                    requiredFeatures: ['hit-test'],
-                    optionalFeatures: ['dom-overlay'], // Запитуємо DOM Overlay
-                    domOverlay: { root: document.body } // Вказуємо, що HTML-елементи в body
+                const session = await navigator.xr.requestSession('immersive-ar', { 
+                    requiredFeatures: ['hit-test']
                 });
+                console.log("AR-сесію успішно отримано.");
                 renderer.xr.setSession(session);
-                onSessionStarted();
+                onSessionStarted(session); // Передаємо сесію
             } catch (e) {
                 console.error("Не вдалося запустити AR сесію:", e);
-                alert("Не вдалося запустити AR. Переконайтесь, що ваш пристрій підтримує ARCore/WebXR.");
+                alert("Помилка запуску AR. Перевірте консоль для деталей.");
             }
+        } else {
+            console.error("WebXR не підтримується на цьому пристрої/браузері.");
+            alert("WebXR не підтримується на цьому пристрої/браузері.");
         }
     };
     
-    // Головний цикл рендерингу
     renderer.setAnimationLoop(render);
+    console.log("init() завершено. Чекаємо на дії користувача.");
 }
 
-function onSessionStarted() {
-    arButton.style.display = 'none'; // Ховаємо кнопку входу
-    uiContainer.style.display = 'block'; // Показуємо UI симуляції
+function onSessionStarted(session) {
+    console.log("onSessionStarted() викликано.");
+    arButton.style.display = 'none';
+    uiContainer.style.display = 'block';
 
-    // Контролер для взаємодії (тап по екрану)
     controller = renderer.xr.getController(0);
     controller.addEventListener('select', onSelect);
     scene.add(controller);
 
-    // Створюємо індикатор поверхні (reticle)
     reticle = new THREE.Mesh(
         new THREE.RingGeometry(0.05, 0.07, 32).rotateX(-Math.PI / 2),
         new THREE.MeshBasicMaterial({ color: 0xffffff })
@@ -85,56 +81,75 @@ function onSessionStarted() {
     reticle.matrixAutoUpdate = false;
     reticle.visible = false;
     scene.add(reticle);
+    console.log("Індикатор (reticle) створено і додано на сцену.");
 
-    // Кнопка симуляції
     simButton.onclick = () => {
+        console.log("Кнопка симуляції натиснута. Новий стан:", !simulationActive);
         simulationActive = !simulationActive;
         simButton.textContent = simulationActive ? "Зупинити симуляцію" : "Симулювати навантаження";
-        if (!simulationActive) {
-            statusText.textContent = "Готово до симуляції";
-            predictionText.textContent = "-";
-        }
     };
     
-    // Починаємо тренування ML-моделі у фоні
     statusText.textContent = "Тренування ML-моделі...";
     createAndTrainModel().then(trainedModel => {
         mlModel = trainedModel;
         statusText.textContent = "Готово. Знайдіть поверхню.";
+        console.log("ML-модель натренована. Очікуємо на пошук поверхні.");
     });
+
+    session.addEventListener('end', onSessionEnded);
 }
 
+function onSessionEnded() {
+    console.log("AR-сесію завершено.");
+    arButton.style.display = 'block';
+    uiContainer.style.display = 'none';
+    hitTestSourceRequested = false;
+    hitTestSource = null;
+    // Очищуємо сцену від старих об'єктів
+    if (serverRackModel) scene.remove(serverRackModel);
+    containers.forEach(c => scene.remove(c));
+    serverRackModel = null;
+    containers = [];
+}
 
 function onSelect() {
-    // Розміщуємо модель, якщо індикатор видимий і модель ще не розміщена
+    console.log("Зафіксовано подію 'select' (тап по екрану).");
+    console.log(`Статус індикатора (reticle.visible): ${reticle.visible}`);
+    console.log(`Статус моделі (serverRackModel): ${serverRackModel ? 'вже існує' : 'ще не існує'}`);
+
+    // БІЛЬШ СУВОРА ПЕРЕВІРКА
     if (reticle.visible && !serverRackModel) {
-        statusText.textContent = "Завантаження моделей...";
-        const loader = new THREE.GLTFLoader();
+        console.log("Умови для розміщення моделі виконано. Починаємо завантаження.");
+        statusText.textContent = "Завантаження моделі...";
         
+        const loader = new THREE.GLTFLoader();
         loader.load('assets/models/server_rack.glb', (gltf) => {
+            console.log("Модель server_rack.glb успішно завантажено.");
             serverRackModel = gltf.scene;
             serverRackModel.position.setFromMatrixPosition(reticle.matrix);
-            serverRackModel.scale.set(0.15, 0.15, 0.15); // Масштабуємо за потреби
+            serverRackModel.scale.set(0.15, 0.15, 0.15);
             scene.add(serverRackModel);
-
-            // Після розміщення додаємо початкові контейнери
+            
+            statusText.textContent = "Модель розміщено. Додаємо контейнери...";
             addContainers(3);
-            statusText.textContent = "Модель розміщено. Починайте симуляцію.";
         }, undefined, (error) => {
             console.error("Помилка завантаження моделі стійки:", error);
             statusText.textContent = "Помилка завантаження моделі.";
         });
+    } else {
+        console.warn("Тап проігноровано: індикатор невидимий або модель вже розміщена.");
     }
 }
 
 function addContainers(count) {
+    console.log(`Викликано addContainers з кількістю: ${count}`);
     const loader = new THREE.GLTFLoader();
     loader.load('assets/models/docker_whale.glb', (gltf) => {
+        console.log("Модель docker_whale.glb успішно завантажено.");
         for (let i = 0; i < count; i++) {
             const container = gltf.scene.clone();
             container.scale.set(0.05, 0.05, 0.05);
             
-            // Розміщуємо контейнери по колу навколо основної моделі
             const angle = (containers.length / 8) * Math.PI * 2;
             const radius = 0.4;
             container.position.set(
@@ -145,53 +160,43 @@ function addContainers(count) {
             scene.add(container);
             containers.push(container);
         }
+        statusText.textContent = "Готово до симуляції.";
+    }, undefined, (error) => {
+        console.error("Помилка завантаження моделі кита:", error);
     });
 }
 
 async function handleSimulation() {
+    // ... (код залишається без змін) ...
     if (!simulationActive || !serverRackModel || !mlModel) return;
-
-    // Симулюємо зміну навантаження
     simulationTime += 0.05;
-    const currentLoad = Math.sin(simulationTime) * 0.5 + 0.5; // Значення від 0 до 1
-    statusText.textContent = `Поточне навантаження: ${currentLoad.toFixed(2)}`;
-    
+    const currentLoad = Math.sin(simulationTime) * 0.5 + 0.5;
+    statusText.textContent = `Навантаження: ${currentLoad.toFixed(2)}`;
     loadHistory.push(currentLoad);
-    if (loadHistory.length > 10) {
-        loadHistory.shift(); // Зберігаємо тільки 10 останніх значень
-    }
-
-    // Робимо прогноз, коли назбирали достатньо історії
+    if (loadHistory.length > 10) loadHistory.shift();
     const prediction = await predictLoad(loadHistory);
     if (prediction !== null) {
         predictionText.textContent = prediction.toFixed(2);
-        
-        // --- КЛЮЧОВА ЛОГІКА ---
-        // Якщо модель прогнозує високе навантаження, і контейнерів ще не максимум
         if (prediction > LOAD_THRESHOLD && containers.length < 15) {
             statusText.innerHTML = `Прогноз: ${prediction.toFixed(2)}<br><b>Масштабування!</b>`;
-            addContainers(1); // Додаємо один контейнер
-            // "Обнуляємо" час, щоб не додавати контейнери постійно
-            simulationTime += Math.PI; 
+            addContainers(1);
+            simulationTime += Math.PI;
         }
     }
 }
 
 function render(timestamp, frame) {
-    // Код для пошуку поверхонь (hit-test)
     if (frame) {
         const referenceSpace = renderer.xr.getReferenceSpace();
         const session = renderer.xr.getSession();
 
         if (hitTestSourceRequested === false) {
+            console.log("Запитуємо hit-test source...");
             session.requestReferenceSpace('viewer').then((refSpace) => {
                 session.requestHitTestSource({ space: refSpace }).then((source) => {
                     hitTestSource = source;
+                    console.log("Hit-test source успішно отримано.");
                 });
-            });
-            session.addEventListener('end', () => {
-                hitTestSourceRequested = false;
-                hitTestSource = null;
             });
             hitTestSourceRequested = true;
         }
@@ -200,17 +205,14 @@ function render(timestamp, frame) {
             const hitTestResults = frame.getHitTestResults(hitTestSource);
             if (hitTestResults.length > 0) {
                 const hit = hitTestResults[0];
-                reticle.visible = true;
+                reticle.visible = true; // Робимо індикатор видимим
                 reticle.matrix.fromArray(hit.getPose(referenceSpace).transform.matrix);
             } else {
-                reticle.visible = false;
+                reticle.visible = false; // Ховаємо, якщо поверхня не знайдена
             }
         }
     }
     
-    // Обробляємо логіку симуляції в кожному кадрі
     handleSimulation();
-
-    // Рендеримо сцену
     renderer.render(scene, camera);
 }
