@@ -113,16 +113,36 @@ window.onload = function() {
     function placeScene() {
         statusText.textContent = "Завантаження 3D-моделей...";
         const loader = new THREE.GLTFLoader();
-        loader.load('./assets/models/server_rack.glb', (gltf) => {
-            serverRackModel = gltf.scene;
-            serverRackModel.position.set(0, 0, 0);
-            serverRackModel.scale.set(0.15, 0.15, 0.15);
-            scene.add(serverRackModel);
-            addContainers(3);
-        }, undefined, (error) => {
-            console.error("Помилка завантаження моделі стійки:", error);
-            statusText.textContent = "Помилка завантаження моделі.";
-        });
+
+        // Додаємо обробники прогресу та помилок
+        loader.load(
+            // URL моделі
+            './assets/models/server_rack.glb', 
+        
+            // onLoad: викликається після успішного завантаження
+            (gltf) => {
+                console.log("Модель успішно завантажена!", gltf);
+                statusText.textContent = "Модель завантажено, додаю на сцену...";
+                serverRackModel = gltf.scene;
+                serverRackModel.position.set(0, 0, 0);
+                serverRackModel.scale.set(0.15, 0.15, 0.15);
+                scene.add(serverRackModel);
+                addContainers(3);
+            },
+        
+            // onProgress: викликається під час завантаження
+            (xhr) => {
+                const percentLoaded = (xhr.loaded / xhr.total * 100).toFixed(2);
+                console.log(`Завантаження моделі: ${percentLoaded}%`);
+                statusText.textContent = `Завантаження моделі: ${percentLoaded}%`;
+            },
+        
+            // onError: викликається, якщо сталася помилка
+            (error) => {
+                console.error("Критична помилка під час завантаження моделі:", error);
+                statusText.textContent = "Помилка завантаження моделі!";
+            }
+        );
     }
 
     function addContainers(count) {
