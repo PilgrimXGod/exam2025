@@ -1,4 +1,4 @@
-// Файл: src/main.js (Фінальна версія з повною візуалізацією)
+// Файл: src/main.js (Повна версія для роботи з твоїми glTF моделями)
 
 window.onload = () => {
     'use strict';
@@ -12,7 +12,8 @@ window.onload = () => {
 
     // --- Глобальні змінні ---
     let scene, camera, renderer, controls;
-    let serverRack, microservices = [], containers = []; // Оновили змінні
+    let serverRackModel = null;
+    const containers = [];
     let mlModel = null;
     let simulationActive = false;
     let simulationTime = 0;
@@ -30,10 +31,9 @@ window.onload = () => {
         scene.background = new THREE.Color(0x333333);
         
         camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.set(0, 2.5, 7); // Відсунули камеру, щоб краще бачити
+        camera.position.set(0, 2, 8); // Відсунули камеру для кращого огляду
 
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
-        scene.add(ambientLight);
+        scene.add(new THREE.AmbientLight(0xffffff, 0.7));
         const dirLight = new THREE.DirectionalLight(0xffffff, 1.0);
         dirLight.position.set(5, 10, 7);
         scene.add(dirLight);
@@ -43,14 +43,17 @@ window.onload = () => {
         document.body.appendChild(renderer.domElement);
 
         controls = new THREE.OrbitControls(camera, renderer.domElement);
-        controls.target.set(0, 1.5, 0); // Націлюємо камеру на центр стійки
+        controls.target.set(0, 1, 0);
         controls.enableDamping = true;
+
+        const grid = new THREE.GridHelper(20, 20, 0x555555, 0x555555);
+        scene.add(grid);
 
         statusText.textContent = "Тренування ML-моделі...";
         await createAndTrainModel();
         
-        statusText.textContent = "Створення сцени...";
-        createScene();
+        statusText.textContent = "Завантаження 3D-моделей...";
+        placeScene();
 
         simButton.onclick = () => {
             simulationActive = !simulationActive;
@@ -72,127 +75,92 @@ window.onload = () => {
         requestAnimationFrame(animate);
         controls.update();
         handleSimulation();
-        // Анімація контейнерів для динамічності
-        containers.forEach(container => {
-            container.rotation.y += 0.01;
-        });
         renderer.render(scene, camera);
     }
 
-    // --- Нова логіка створення сцени ---
-    // src/main.js
+    // --- Логіка завантаження твоїх моделей ---
+    function placeScene() {
+        const loader = new THREE.GLTFLoader();
+        loader.load(
+            './assets/models/server_rack.gltf',
+            (gltf) => {
+                console.log("Модель стійки завантажена. Обробляємо...");
+                serverRackModel = gltf.scene;
+                
+                // Проходимо по кожному елементу моделі
+                serverRackModel.traverse(child => {
+                    if (child.isMesh) {
+                        // Ігноруємо прозорість, щоб всі частини були видимі
+                        child.material.transparent = false;
+                        child.material.opacity = 1.0;
+                    }
+                });
+                
+                // Автоматичне центрування та масштабування
+                const box = new THREE.Box3().setFromObject(serverRackModel);
+                const size = box.getSize(new THREE.Vector3());
+                console.log("Реальний розмір моделі стійки:", size);
 
-function createScene() {
-    console.log("Створюємо дата-центр та мікросервіси.");
-    
-    // 1. Створюємо батьківський об'єкт для всієї нашої сцени
-    // Це допоможе нам легко керувати всім разом
-    serverRack = new THREE.Group();
-    serverRack.position.set(0, 1.5, 0);
-    scene.add(serverRack);
-    
-    const loader = new THREE.GLTFLoader();
-    
-    // Завантажуємо модель серверної стійки
-    loader.load(
-        'https://pilgrimxgod.github.io/exam2025/assets/models/server_rack.gltf', // Переконайся, що цей шлях правильний
-        (gltf) => {
-            console.log("Модель стійки завантажена.");
-            const rackModel = gltf.scene;
-            
-            // Проходимо по моделі і налаштовуємо матеріали
-            rackModel.traverse(child => {
-                if (child.isMesh) {
-                    child.material.metalness = 0.1;
-                    child.material.roughness = 0.8;
-                    console.log("👀 Mesh:", child.name, child.material);
+                if (size.length() > 0.001) { // Перевірка, що розмір не нульовий
+                    const maxDim = Math.max(size.x, size.y, size.z);
+                    const scale = 3.0 / maxDim; // Робимо так, щоб найбільша сторона була 3 метри
+                    serverRackModel.scale.set(scale, scale, scale);
                 }
-            });
-            
-            // Центруємо та масштабуємо
-            const box = new THREE.Box3().setFromObject(rackModel);
-            const size = box.getSize(new THREE.Vector3());
-            console.log("📏 Розмір моделі:", size);
-            const center = box.getCenter(new THREE.Vector3());
-            rackModel.position.sub(center);
-            rackModel.scale.set(1.5, 1.5, 1.5);
-            
-            serverRack.add(rackModel); // Додаємо модель всередину нашої групи
-            
-            // 2. Створюємо мікросервіси (як і раніше, куби)
-            const service1 = createMicroservice('Аутентифікація', 0x00ff00, 0, 0.5, 0.2);
-            const service2 = createMicroservice('Профілі', 0xffff00, 0, 0, 0.2);
-            const service3 = createMicroservice('Платежі', 0xff0000, 0, -0.5, 0.2);
-            
-            microservices.push(service1, service2, service3);
-            microservices.forEach(ms => serverRack.add(ms));
-            
-            // 3. Додаємо початкові контейнери (сфери)
-            addContainers(2, service1);
-            addContainers(3, service2);
-            addContainers(1, service3);
+                
+                // Перераховуємо розміри після масштабування і ставимо на підлогу
+                const newBox = new THREE.Box3().setFromObject(serverRackModel);
+                const center = newBox.getCenter(new THREE.Vector3());
+                serverRackModel.position.sub(center); 
+                serverRackModel.position.y = newBox.getSize(new THREE.Vector3()).y / 2;
 
-            statusText.textContent = "Готово до симуляції.";
-        },
-        undefined,
-        (error) => {
-            console.error("Помилка завантаження моделі стійки:", error);
-            statusText.textContent = "Помилка завантаження моделі стійки!";
-        }
-    );
-}
-
-    function createMicroservice(name, color, x, y, z) {
-        const serviceGeometry = new THREE.BoxGeometry(0.5, 0.3, 0.8);
-        const serviceMaterial = new THREE.MeshStandardMaterial({
-            color: color,
-            roughness: 0.5,
-            metalness: 0.2,
-            transparent: true,
-            opacity: 0.8
-        });
-        const serviceMesh = new THREE.Mesh(serviceGeometry, serviceMaterial);
-        serviceMesh.position.set(x, y - 1.5, z); // Позиція відносно центру стійки
-        
-        // Зберігаємо дані в об'єкті для подальшого використання
-        serviceMesh.userData = { name: name, containers: [] };
-        
-        return serviceMesh;
+                scene.add(serverRackModel);
+                addContainers(3);
+            },
+            undefined,
+            (error) => {
+                console.error("Помилка завантаження серверної стійки:", error);
+                statusText.textContent = "Помилка завантаження моделі стійки!";
+            }
+        );
     }
 
-    function addContainers(count, microservice) {
-        if (!microservice) { // Якщо сервіс не вказано, вибираємо випадковий
-            microservice = microservices[Math.floor(Math.random() * microservices.length)];
-        }
-        console.log(`Додаємо ${count} контейнер(ів) до сервісу "${microservice.userData.name}"`);
-        
-        for (let i = 0; i < count; i++) {
-            const containerGeometry = new THREE.SphereGeometry(0.1, 16, 16);
-            const containerMaterial = new THREE.MeshStandardMaterial({
-                color: microservice.material.color, // Контейнер має колір свого сервісу
-                emissive: microservice.material.color, // і трохи світиться
-                emissiveIntensity: 0.4
-            });
-            const container = new THREE.Mesh(containerGeometry, containerMaterial);
-
-            // Розміщуємо контейнер біля його мікросервісу
-            const r = 0.5; // радіус орбіти
-            const angle = (microservice.userData.containers.length / 5) * Math.PI * 2;
-            container.position.set(
-                microservice.position.x + Math.cos(angle) * r,
-                microservice.position.y + Math.sin(angle) * r,
-                microservice.position.z
-            );
-            
-            microservice.userData.containers.push(container);
-            containers.push(container); // Загальний список для анімації
-            serverRack.add(container); // Додаємо на сцену (всередину стійки)
-        }
+    function addContainers(count) {
+        if (!serverRackModel) return;
+        const loader = new THREE.GLTFLoader();
+        loader.load(
+            './assets/models/docker_whale.gltf',
+            (gltf) => {
+                console.log("Модель кита завантажена.");
+                for (let i = 0; i < count; i++) {
+                    const container = gltf.scene.clone();
+                    const angle = (containers.length / 10) * Math.PI * 2;
+                    const radius = 1.5;
+                    
+                    container.position.set(Math.cos(angle) * radius, 1, Math.sin(angle) * radius);
+                    
+                    // Автоматичне масштабування кита
+                    const box = new THREE.Box3().setFromObject(container);
+                    const size = box.getSize(new THREE.Vector3());
+                    if (size.length() > 0.001) {
+                        const maxDim = Math.max(size.x, size.y, size.z);
+                        const scale = 0.5 / maxDim; // Робимо його розміром 0.5 метра
+                        container.scale.set(scale, scale, scale);
+                    }
+                    
+                    scene.add(container);
+                    containers.push(container);
+                }
+                statusText.textContent = "Готово до симуляції.";
+            },
+            undefined,
+            (error) => {
+                console.error("Помилка завантаження моделі кита:", error);
+            }
+        );
     }
 
     // --- Логіка ML та симуляції ---
     async function createAndTrainModel() {
-        // ... код ML без змін ...
         let model = tf.sequential();
         model.add(tf.layers.lstm({ units: 16, inputShape: [10, 1] }));
         model.add(tf.layers.dense({ units: 1 }));
@@ -222,11 +190,9 @@ function createScene() {
         if (loadHistory.length === 10) {
             const prediction = await predictLoad(loadHistory);
             predictionText.textContent = prediction.toFixed(2);
-            if (prediction > LOAD_THRESHOLD) {
-                // Вибираємо випадковий сервіс для масштабування
-                const targetService = microservices[Math.floor(Math.random() * microservices.length)];
-                statusText.innerHTML = `Прогноз: ${prediction.toFixed(2)}<br><b>Масштабування сервісу ${targetService.userData.name}!</b>`;
-                addContainers(1, targetService); // Додаємо новий контейнер до цільового сервісу
+            if (prediction > LOAD_THRESHOLD && containers.length < 30) {
+                statusText.innerHTML = `Прогноз: ${prediction.toFixed(2)}<br><b>Масштабування!</b>`;
+                addContainers(1);
                 simulationTime += Math.PI;
             }
         }
