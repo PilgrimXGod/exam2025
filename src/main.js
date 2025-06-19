@@ -1,6 +1,6 @@
-// Файл: src/main.js (Версія з модулями)
+// Файл: src/main.js (Версія з правильними модульними імпортами з CDN)
 
-// Імпортуємо все необхідне з бібліотеки Three.js
+// ВАЖЛИВО: Імпортуємо все, вказуючи повні URL-шляхи до .js файлів
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.module.js';
 import { GLTFLoader } from 'https://cdn.jsdelivr.net/npm/three@0.149.0/examples/jsm/loaders/GLTFLoader.js';
 import { OrbitControls } from 'https://cdn.jsdelivr.net/npm/three@0.149.0/examples/jsm/controls/OrbitControls.js';
@@ -14,7 +14,6 @@ let mlModel;
 
 async function createAndTrainModel() {
     console.log("Починаємо створення та тренування ML-моделі...");
-    // ... (код ML-моделі залишається без змін) ...
     let model = tf.sequential();
     model.add(tf.layers.lstm({ units: 16, inputShape: [10, 1] }));
     model.add(tf.layers.dense({ units: 1 }));
@@ -120,6 +119,8 @@ function placeScene() {
         serverRackModel.scale.set(0.15, 0.15, 0.15);
         scene.add(serverRackModel);
         addContainers(3);
+    }, undefined, (error) => {
+        console.error("Помилка завантаження моделі стійки:", error);
     });
 }
 
@@ -140,11 +141,12 @@ function addContainers(count) {
             containers.push(containerGroup);
         }
         statusText.textContent = "Готово до симуляції.";
+    }, undefined, (error) => {
+        console.error("Помилка завантаження моделі кита:", error);
     });
 }
 
 async function handleSimulation() {
-    // ... (код симуляції без змін) ...
     if (!simulationActive || !serverRackModel || !mlModel) return;
     simulationTime += 0.05;
     const currentLoad = Math.sin(simulationTime) * 0.5 + 0.5;
