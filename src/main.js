@@ -1,4 +1,4 @@
-// Файл: src/main.js (Остаточна версія з виправленим порядком)
+// Файл: src/main.js (Повна версія з onWindowResize)
 
 window.onload = () => {
     'use strict';
@@ -15,7 +15,11 @@ window.onload = () => {
     const dataPackets = [];
     let mlModel = null, simulationActive = false, simulationTime = 0;
     const loadHistory = [];
-    const MIN_CONTAINERS = 4, MAX_CONTAINERS = 50, LOAD_THRESHOLD = 0.75, DEPROVISION_THRESHOLD = 0.3;
+    
+    const MIN_CONTAINERS = 4;
+    const MAX_CONTAINERS = 50;
+    const LOAD_THRESHOLD = 0.75;
+    const DEPROVISION_THRESHOLD = 0.3;
 
     // --- Елементи UI ---
     const simButton = document.getElementById('simulate-load-btn');
@@ -28,7 +32,9 @@ window.onload = () => {
     let lastAdjustmentTime = 0;
     const ADJUSTMENT_INTERVAL = 1000;
 
-    // --- ВИЗНАЧЕННЯ ВСІХ ФУНКЦІЙ ---
+    // ===============================================================
+    // ВИЗНАЧЕННЯ ВСІХ ФУНКЦІЙ
+    // ===============================================================
 
     function initializeScene() {
         clock = new THREE.Clock();
@@ -163,11 +169,7 @@ window.onload = () => {
         const packetGeometry = new THREE.SphereGeometry(0.05, 8, 8);
         const packetMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true });
         const packet = new THREE.Mesh(packetGeometry, packetMaterial);
-        packet.userData = {
-            start: startService.position.clone().add(new THREE.Vector3(0, 0.2, 0)),
-            end: endService.position.clone().add(new THREE.Vector3(0, 0.2, 0)),
-            progress: 0
-        };
+        packet.userData = { start: startService.position.clone().add(new THREE.Vector3(0, 0.2, 0)), end: endService.position.clone().add(new THREE.Vector3(0, 0.2, 0)), progress: 0 };
         dataPackets.push(packet);
         scene.add(packet);
     }
@@ -218,10 +220,8 @@ window.onload = () => {
             statusText.innerHTML = `📈 Навантаження зростає...`;
             addContainers(1, targetService);
         } else if (currentCount > targetCount && currentCount > MIN_CONTAINERS) {
-            const targetServiceWithMostContainers = microservices.reduce((prev, curr) => 
-                prev.userData.containers.length > curr.userData.containers.length ? prev : curr
-            );
-            if (targetServiceWithMostContainers.userData.containers.length > 1) { // Змінено, щоб не видаляти останній контейнер сервісу
+            const targetServiceWithMostContainers = microservices.reduce((prev, curr) => prev.userData.containers.length > curr.userData.containers.length ? prev : curr);
+            if (targetServiceWithMostContainers.userData.containers.length > 1) {
                 statusText.innerHTML = `📉 Навантаження спадає...`;
                 removeContainer(targetServiceWithMostContainers);
             }
@@ -240,7 +240,54 @@ window.onload = () => {
     function initializeOrbitControls() {
         THREE.OrbitControls = function(object, domElement) { this.object = object; this.domElement = domElement; this.enabled = true; this.target = new THREE.Vector3(); this.enableDamping = false; this.dampingFactor = 0.05; this.enableZoom = true; this.enableRotate = true; this.enablePan = true; var scope = this; var rotateSpeed = 1.0; var zoomSpeed = 1.0; var spherical = new THREE.Spherical(); var sphericalDelta = new THREE.Spherical(); var scale = 1; var panOffset = new THREE.Vector3(); var rotateStart = new THREE.Vector2(); var rotateEnd = new THREE.Vector2(); var rotateDelta = new THREE.Vector2(); var STATE = { NONE: -1, ROTATE: 0 }; var state = STATE.NONE; this.update = function() { var offset = new THREE.Vector3(); var quat = new THREE.Quaternion().setFromUnitVectors(object.up, new THREE.Vector3(0, 1, 0)); var quatInverse = quat.clone().invert(); var position = scope.object.position; offset.copy(position).sub(scope.target); offset.applyQuaternion(quat); spherical.setFromVector3(offset); if (scope.enableDamping) { spherical.theta += sphericalDelta.theta * scope.dampingFactor; spherical.phi += sphericalDelta.phi * scope.dampingFactor; } else { spherical.theta += sphericalDelta.theta; spherical.phi += sphericalDelta.phi; } spherical.makeSafe(); spherical.radius *= scale; if (scope.enableDamping) { scope.target.addScaledVector(panOffset, scope.dampingFactor); } else { scope.target.add(panOffset); } offset.setFromSpherical(spherical); offset.applyQuaternion(quatInverse); position.copy(scope.target).add(offset); scope.object.lookAt(scope.target); if (scope.enableDamping) { sphericalDelta.theta *= (1 - scope.dampingFactor); sphericalDelta.phi *= (1 - scope.dampingFactor); panOffset.multiplyScalar(1 - scope.dampingFactor); } else { sphericalDelta.set(0, 0, 0); panOffset.set(0, 0, 0); } scale = 1; return true; }; function onMouseDown(event) { if (!scope.enabled) return; event.preventDefault(); if (event.button === 0) { state = STATE.ROTATE; rotateStart.set(event.clientX, event.clientY); } document.addEventListener('mousemove', onMouseMove, false); document.addEventListener('mouseup', onMouseUp, false); } function onMouseMove(event) { if (!scope.enabled) return; event.preventDefault(); if (state === STATE.ROTATE) { rotateEnd.set(event.clientX, event.clientY); rotateDelta.subVectors(rotateEnd, rotateStart).multiplyScalar(rotateSpeed); sphericalDelta.theta -= 2 * Math.PI * rotateDelta.x / scope.domElement.clientWidth; sphericalDelta.phi -= 2 * Math.PI * rotateDelta.y / scope.domElement.clientHeight; rotateStart.copy(rotateEnd); } } function onMouseUp() { if (!scope.enabled) return; document.removeEventListener('mousemove', onMouseMove, false); document.removeEventListener('mouseup', onMouseUp, false); state = STATE.NONE; } function onMouseWheel(event) { if (!scope.enabled || !scope.enableZoom) return; event.preventDefault(); if (event.deltaY < 0) { scale /= Math.pow(0.95, zoomSpeed); } else if (event.deltaY > 0) { scale *= Math.pow(0.95, zoomSpeed); } } if (domElement) { domElement.addEventListener('mousedown', onMouseDown, false); domElement.addEventListener('wheel', onMouseWheel, false); domElement.addEventListener('contextmenu', function(event) { event.preventDefault(); }, false); } };
     }
+
     
+    
+    function onWindowResize() {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        labelRenderer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    // --- Анімаційний цикл ---
+    function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+
+        const time = performance.now() * 0.001;
+
+        containers.forEach(container => {
+            const scale = 1 + Math.sin(time * 5 + container.userData.timeOffset) * 0.2;
+            container.scale.lerp(new THREE.Vector3(scale, scale, scale), 0.1);
+        });
+        
+        if (simulationActive && Math.random() < 0.1 && dataPackets.length < 20) {
+            createDataPacket();
+        }
+
+        for (let i = dataPackets.length - 1; i >= 0; i--) {
+            const packet = dataPackets[i];
+            const delta = clock.getDelta();
+            packet.userData.progress += delta * 1.5;
+            packet.position.lerpVectors(packet.userData.start, packet.userData.end, packet.userData.progress);
+            packet.material.opacity = 1.0 - packet.userData.progress;
+            
+            if (packet.userData.progress >= 1) {
+                scene.remove(packet);
+                dataPackets.splice(i, 1);
+            }
+        }
+        
+        if (simulationActive) {
+            handleSimulation();
+        }
+
+        renderer.render(scene, camera);
+        labelRenderer.render(scene, camera);
+    }
+
+    // --- Обробники подій ---
     function setupEventHandlers() {
         simButton.onclick = () => {
             simulationActive = !simulationActive;
@@ -248,37 +295,8 @@ window.onload = () => {
         };
         window.addEventListener('resize', onWindowResize);
     }
-    
-    function animate() {
-        requestAnimationFrame(animate);
-        controls.update();
-        const time = performance.now() * 0.001;
-        containers.forEach(container => {
-            const scale = 1 + Math.sin(time * 5 + container.userData.timeOffset) * 0.2;
-            container.scale.lerp(new THREE.Vector3(scale, scale, scale), 0.1);
-        });
-        if (simulationActive && Math.random() < 0.1 && dataPackets.length < 20) {
-            createDataPacket();
-        }
-        for (let i = dataPackets.length - 1; i >= 0; i--) {
-            const packet = dataPackets[i];
-            const delta = clock.getDelta();
-            packet.userData.progress += delta * 1.5;
-            packet.position.lerpVectors(packet.userData.start, packet.userData.end, packet.userData.progress);
-            packet.material.opacity = 1.0 - packet.userData.progress;
-            if (packet.userData.progress >= 1) {
-                scene.remove(packet);
-                dataPackets.splice(i, 1);
-            }
-        }
-        if (simulationActive) {
-            handleSimulation();
-        }
-        renderer.render(scene, camera);
-        labelRenderer.render(scene, camera);
-    }
 
-    // --- ОСНОВНА ФУНКЦІЯ, ЯКА ЗАПУСКАЄ ВСЕ ---
+    // --- ЗАПУСК ПРОГРАМИ ---
     async function startApp() {
         try {
             initializeScene();
