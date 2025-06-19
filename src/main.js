@@ -109,13 +109,17 @@ window.onload = () => {
     
     function createAllMicroservices(parentRack) {
         const center = parentRack.position;
-        const service1 = createMicroservice('Аутентифікація', 0x00ff00, center.x, center.y, center.z + 1.5);
-        const service2 = createMicroservice('Профілі', 0xffff00, center.x, center.y, center.z - 1.5);
-        const service3 = createMicroservice('Платежі', 0xff0000, center.x + 1.5, center.y, center.z);
-        const service4 = createMicroservice('API Gateway', 0x00ffff, center.x - 1.5, center.y, center.z);
+        // ЗМІНЕНО: Розносимо сервіси далі один від одного
+        const r = 2.5; // Радіус
+        const service1 = createMicroservice('Аутентифікація', 0x00ff00, center.x, center.y, center.z + r);
+        const service2 = createMicroservice('Профілі', 0xffff00, center.x + r, center.y, center.z);
+        const service3 = createMicroservice('Платежі', 0xff0000, center.x, center.y, center.z - r);
+        const service4 = createMicroservice('API Gateway', 0x00ffff, center.x - r, center.y, center.z);
+        
         microservices = [service1, service2, service3, service4];
         microservices.forEach(ms => datacenter.add(ms));
         serviceCountEl.textContent = microservices.length;
+        
         addContainers(1, service1, true);
         addContainers(1, service2, true);
         addContainers(1, service3, true);
@@ -123,8 +127,18 @@ window.onload = () => {
     }
     
     function clearAllMicroservices() {
-        microservices.forEach(ms => datacenter.remove(ms));
+        // Проходимо по кожному мікросервісу і видаляємо його разом з дочірніми об'єктами (включаючи мітки)
+        microservices.forEach(ms => {
+            ms.traverse(function (object) {
+                if (object.isCSS2DObject) {
+                    ms.remove(object); // Видаляємо мітку з батька
+                }
+            });
+            datacenter.remove(ms);
+        });
+        
         containers.forEach(c => datacenter.remove(c));
+        
         microservices = [];
         containers = [];
         containerCountEl.textContent = 0;
@@ -152,16 +166,27 @@ window.onload = () => {
             const containerGeometry = new THREE.SphereGeometry(0.15, 16, 16);
             const containerMaterial = new THREE.MeshStandardMaterial({ color: microservice.material.color, emissive: microservice.material.color, emissiveIntensity: 0.6 });
             const container = new THREE.Mesh(containerGeometry, containerMaterial);
+            
+            // ЗМІНЕНО: Контейнери тепер ближче до сервісу
             const containerCount = microservice.userData.containers.length;
-            const radius = 1 + Math.floor(containerCount / 8) * 0.4;
+            const radius = 0.8 + Math.floor(containerCount / 8) * 0.3; // Радіус орбіти
             const angle = (containerCount % 8) * (Math.PI / 4) + Math.random() * 0.2;
-            container.position.set(microservice.position.x + Math.cos(angle) * radius, microservice.position.y, microservice.position.z + Math.sin(angle) * radius);
-            container.userData = { service: microservice, timeOffset: Math.random() * 100 };
+            
+            container.position.set(
+                Math.cos(angle) * radius,
+                0,
+                Math.sin(angle) * radius
+            );
+            container.userData = { timeOffset: Math.random() * 100 };
+            
             if (isInstant) { container.scale.set(1, 1, 1); } 
             else { container.scale.set(0.01, 0.01, 0.01); animateScale(container, new THREE.Vector3(1, 1, 1), 0.5); }
+            
             microservice.userData.containers.push(container);
+            // Додаємо контейнер як дочірній об'єкт мікросервісу
+            microservice.add(container);
+            // Додаємо в глобальний масив для анімації
             containers.push(container);
-            datacenter.add(container);
         }
         containerCountEl.textContent = containers.length;
     }
@@ -188,6 +213,7 @@ window.onload = () => {
         scaleStep();
     }
 
+    // ЗМІНЕНО: Рух пакетів по дузі
     function createDataPacket() {
         if (microservices.length < 2) return;
         let startService, endService;
@@ -195,10 +221,17 @@ window.onload = () => {
             startService = microservices[Math.floor(Math.random() * microservices.length)];
             endService = microservices[Math.floor(Math.random() * microservices.length)];
         } while (startService === endService);
+
         const packetGeometry = new THREE.SphereGeometry(0.05, 8, 8);
-        const packetMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true });
+        const packetMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
         const packet = new THREE.Mesh(packetGeometry, packetMaterial);
-        packet.userData = { start: startService.position.clone().add(new THREE.Vector3(0, 0.2, 0)), end: endService.position.clone().add(new THREE.Vector3(0, 0.2, 0)), progress: 0 };
+
+        packet.userData = {
+            start: startService.position,
+            end: endService.position,
+            progress: 0
+        };
+        
         dataPackets.push(packet);
         scene.add(packet);
     }
@@ -364,7 +397,7 @@ window.onload = () => {
     function animate() {
         requestAnimationFrame(animate);
         controls.update();
-        const delta = clock.getDelta();
+        const delta = Math.min(clock.getDelta(), 0.1); 
         const time = performance.now() * 0.001;
         containers.forEach(container => {
             const scale = 1 + Math.sin(time * 5 + container.userData.timeOffset) * 0.2;
@@ -375,8 +408,18 @@ window.onload = () => {
         }
         for (let i = dataPackets.length - 1; i >= 0; i--) {
             const packet = dataPackets[i];
-            packet.userData.progress += delta * 1.5;
-            packet.position.lerpVectors(packet.userData.start, packet.userData.end, packet.userData.progress);
+            packet.userData.progress += delta * 1.2; // Трохи повільніше
+            
+            const start = packet.userData.start;
+            const end = packet.userData.end;
+            
+            // Інтерполяція по прямій
+            const currentPos = new THREE.Vector3().lerpVectors(start, end, packet.userData.progress);
+            // Додаємо висоту по параболі
+            currentPos.y += Math.sin(packet.userData.progress * Math.PI) * 1.5;
+            
+            packet.position.copy(currentPos);
+            
             if (packet.userData.progress >= 1) {
                 scene.remove(packet);
                 dataPackets.splice(i, 1);
