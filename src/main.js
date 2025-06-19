@@ -1,4 +1,4 @@
-// Файл: src/main.js (Версія з window.onload та діагностикою сцени)
+// Файл: src/main.js (Версія для завантаження .gltf, з window.onload та діагностикою)
 
 // Ми чекаємо, поки ВСЯ сторінка, включаючи всі скрипти з <head>,
 // повністю завантажиться. Тільки після цього наш код почне виконуватися.
@@ -125,16 +125,20 @@ window.onload = function() {
         const loader = new THREE.GLTFLoader();
         
         loader.load(
-            // Шлях до моделі
-            './assets/models/server_rack.glb',
+            // Шлях до .gltf файлу
+            './assets/models/server_rack.gltf',
             
-            // onLoad: викликається після успішного завантаження
+            // onLoad
             (gltf) => {
-                console.log("Модель успішно завантажена!", gltf);
+                console.log("Модель server_rack.gltf успішно завантажена!", gltf);
                 statusText.textContent = "Модель завантажено, додаю на сцену...";
                 serverRackModel = gltf.scene;
-                serverRackModel.position.set(0, 0, 0);
-                serverRackModel.scale.set(0.15, 0.15, 0.15);
+                
+                // Спробуємо автоматично центрувати модель і підібрати масштаб
+                const box = new THREE.Box3().setFromObject(serverRackModel);
+                const center = box.getCenter(new THREE.Vector3());
+                serverRackModel.position.sub(center); // центруємо модель
+                
                 scene.add(serverRackModel);
 
                 // === ДІАГНОСТИКА: Додаємо жовту рамку навколо моделі ===
@@ -145,14 +149,14 @@ window.onload = function() {
                 addContainers(3);
             },
             
-            // onProgress: викликається під час завантаження
+            // onProgress
             (xhr) => {
                 const percentLoaded = (xhr.loaded / xhr.total * 100).toFixed(2);
                 console.log(`Завантаження моделі: ${percentLoaded}%`);
                 statusText.textContent = `Завантаження моделі: ${percentLoaded}%`;
             },
             
-            // onError: викликається, якщо сталася помилка
+            // onError
             (error) => {
                 console.error("Критична помилка під час завантаження моделі:", error);
                 statusText.textContent = "Помилка завантаження моделі!";
@@ -163,18 +167,17 @@ window.onload = function() {
     function addContainers(count) {
         if (!serverRackModel) return;
         const loader = new THREE.GLTFLoader();
-        loader.load('./assets/models/docker_whale.glb', (gltf) => {
+        // Завантажуємо модель кита
+        loader.load('./assets/models/docker_whale.gltf', (gltf) => {
             for (let i = 0; i < count; i++) {
                 const container = gltf.scene.clone();
                 const angle = (containers.length / 10) * Math.PI * 2 + Math.random() * 0.5;
-                const radius = 0.5 + Math.random() * 0.2;
+                const radius = 1.5 + Math.random() * 0.5; // Збільшимо радіус
                 
                 const containerGroup = new THREE.Group();
                 serverRackModel.add(containerGroup);
                 
-                container.position.set(Math.cos(angle) * radius, 1.0, Math.sin(angle) * radius);
-                container.scale.set(0.35, 0.35, 0.35);
-                container.rotation.y = Math.random() * Math.PI * 2;
+                container.position.set(Math.cos(angle) * radius, 0.5, Math.sin(angle) * radius);
                 
                 containerGroup.add(container);
                 containers.push(containerGroup);
