@@ -1,4 +1,4 @@
-// Файл: src/main.js (Чистова версія для здачі проєкту)
+// Файл: src/main.js (Версія з window.onload та "силовим" рендерингом моделі)
 
 window.onload = function() {
     'use strict';
@@ -67,17 +67,17 @@ window.onload = function() {
     async function main() {
         // --- Налаштування сцени ---
         scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x2d3436); // Темний фон для кращого контрасту
+        scene.background = new THREE.Color(0x2d3436);
         scene.fog = new THREE.Fog(0x2d3436, 10, 30);
 
         // --- Налаштування камери ---
         camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.set(0, 1.5, 5); // Позиція трохи далі і вище
+        camera.position.set(0, 1.5, 5);
 
         // --- Налаштування світла ---
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5); // М'яке загальне світло
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
         scene.add(ambientLight);
-        const dirLight = new THREE.DirectionalLight(0xffffff, 1);
+        const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
         dirLight.position.set(5, 10, 7.5);
         scene.add(dirLight);
 
@@ -85,7 +85,7 @@ window.onload = function() {
         renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setPixelRatio(window.devicePixelRatio);
         renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.outputEncoding = THREE.sRGBEncoding; // Правильна обробка кольорів
+        renderer.outputEncoding = THREE.sRGBEncoding;
         document.body.appendChild(renderer.domElement);
         
         // --- Налаштування керування мишкою ---
@@ -114,31 +114,58 @@ window.onload = function() {
         renderer.setSize(window.innerWidth, window.innerHeight);
     }
 
+    // Ця функція тепер містить "силовий" рендеринг
     function placeScene() {
         statusText.textContent = "Завантаження 3D-моделей...";
         const loader = new THREE.GLTFLoader();
         
-        loader.load('./assets/models/server_rack.gltf', (gltf) => {
-            serverRackModel = gltf.scene;
-            
-            // Центруємо модель
-            const box = new THREE.Box3().setFromObject(serverRackModel);
-            const center = box.getCenter(new THREE.Vector3());
-            serverRackModel.position.sub(center); 
-            
-            // Встановлюємо фінальний масштаб
-            serverRackModel.scale.set(1.5, 1.5, 1.5); // Підбери цей масштаб за потреби
+        loader.load(
+            './assets/models/server_rack.gltf',
+            (gltf) => {
+                console.log("Модель завантажена, обробляємо...");
+                serverRackModel = gltf.scene;
+                
+                // --- СИЛОВИЙ РЕНДЕРИНГ ---
+                // Проходимо по кожному об'єкту всередині моделі
+                serverRackModel.traverse(function (child) {
+                    if (child.isMesh) {
+                        // Примусово робимо об'єкт видимим
+                        child.visible = true;
+                        
+                        // Створюємо дуже простий, гарантовано робочий матеріал
+                        // Це допоможе, якщо проблема в матеріалах моделі
+                        const simpleMaterial = new THREE.MeshStandardMaterial({
+                            color: 0xcccccc, // Світло-сірий
+                            metalness: 0.1,
+                            roughness: 0.8
+                        });
+                        child.material = simpleMaterial;
+                    }
+                });
+                // -------------------------
 
-            scene.add(serverRackModel);
-            addContainers(3);
-        },
-        (xhr) => {
-            const percentLoaded = (xhr.loaded / xhr.total * 100).toFixed(0);
-            statusText.textContent = `Завантаження моделі: ${percentLoaded}%`;
-        },
-        (error) => {
-            console.error("Помилка завантаження моделі стійки:", error);
-        });
+                // Центруємо та масштабуємо
+                const box = new THREE.Box3().setFromObject(serverRackModel);
+                const center = box.getCenter(new THREE.Vector3());
+                serverRackModel.position.sub(center); 
+                
+                // Встановлюємо масштаб. Спробуй різні значення, якщо потрібно (0.1, 1, 5, 10)
+                serverRackModel.scale.set(1.5, 1.5, 1.5);
+                
+                scene.add(serverRackModel);
+                console.log("Модель додано на сцену.");
+                
+                addContainers(3);
+            },
+            (xhr) => {
+                const percentLoaded = (xhr.total > 0) ? (xhr.loaded / xhr.total * 100).toFixed(0) : 0;
+                statusText.textContent = `Завантаження моделі: ${percentLoaded}%`;
+            },
+            (error) => {
+                console.error("Критична помилка під час завантаження моделі:", error);
+                statusText.textContent = "Помилка завантаження моделі!";
+            }
+        );
     }
 
     function addContainers(count) {
@@ -154,7 +181,7 @@ window.onload = function() {
                 serverRackModel.add(containerGroup);
                 
                 container.position.set(Math.cos(angle) * radius, 0.5, Math.sin(angle) * radius);
-                container.scale.set(0.1, 0.1, 0.1); // Зробимо китів меншими
+                container.scale.set(0.1, 0.1, 0.1);
                 container.rotation.y = Math.random() * Math.PI * 2;
                 
                 containerGroup.add(container);
