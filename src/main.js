@@ -1,31 +1,34 @@
-// Файл: src/main.js (Фінальна версія з виправленням області видимості змінних симуляції)
+// Файл: src/main.js (Фінальна версія з симуляцією збою)
 
 window.onload = () => {
     'use strict';
 
-    // --- Перевірка завантаження бібліотек ---
     if (typeof THREE === 'undefined') { alert("Помилка: Three.js не завантажився!"); return; }
     if (typeof THREE.CSS2DRenderer === 'undefined') { alert("Помилка: CSS2DRenderer не завантажилася!"); return; }
     if (typeof tf === 'undefined') { alert("Помилка: TensorFlow.js не завантажилася!"); return; }
     console.log("✅ Всі бібліотеки успішно завантажені.");
 
-    // --- Глобальні змінні ---
     let scene, camera, renderer, controls, labelRenderer, clock;
-    let datacenter, microservices = [], containers = [];
+    let datacenter, microservices = [], containers = [], serverRacks = [];
     const dataPackets = [];
     let mlModel = null, simulationActive = false, simulationTime = 0;
     const loadHistory = [];
-    
-    const MIN_CONTAINERS = 4;
-    const MAX_CONTAINERS = 50;
-    
+    const MIN_CONTAINERS = 4, MAX_CONTAINERS = 50;
     let isAutoMode = true;
+    let isFailoverActive = false;
 
-    const raycaster = new THREE.Raycaster();
-    const mouse = new THREE.Vector2();
+    const objectInfo = {
+        'Серверна стійка (Основна)': 'Це основний "гарячий" кластер, що обробляє 100% запитів. Включає потужні обчислювальні вузли та швидку пам\'ять. Дублювання ключових сервісів тут забезпечує відмовостійкість (High Availability).',
+        'Серверна стійка (Резервна)': 'Це резервний "холодний" кластер. Він неактивний і не обробляє запити, але готовий перебрати на себе навантаження у разі повної відмови основного кластера (концепція Disaster Recovery).',
+        'Аутентифікація': 'Відповідає за вхід користувачів, реєстрацію та перевірку прав доступу.',
+        'Профілі': 'Зберігає та керує даними користувачів: імена, аватари, налаштування.',
+        'Платежі': 'Обробляє транзакції, інтегрується з платіжними шлюзами.',
+        'API Gateway': 'Єдина точка входу для всіх зовнішніх запитів. Маршрутизує запити.',
+        'Контейнер': 'Ізольоване середовище для запуску коду мікросервісу (Docker).'
+    };
 
-    // --- Елементи UI ---
     const simButton = document.getElementById('simulate-load-btn');
+    const failoverBtn = document.getElementById('failover-btn');
     const statusText = document.getElementById('status-text');
     const predictionText = document.getElementById('prediction-text');
     const serviceCountEl = document.getElementById('service-count');
@@ -37,33 +40,28 @@ window.onload = () => {
     const infoTitle = document.getElementById('info-title');
     const infoDescription = document.getElementById('info-description');
     const infoCloseBtn = document.getElementById('info-close-btn');
+    
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
 
-    // --- Інформація про об'єкти ---
-    const objectInfo = {
-        'Аутентифікація': 'Відповідає за вхід користувачів, реєстрацію та перевірку прав доступу. Використовує безпечні токени.',
-        'Профілі': 'Зберігає та керує даними користувачів: імена, аватари, налаштування. Взаємодіє з базою даних.',
-        'Платежі': 'Обробляє транзакції, інтегрується з платіжними шлюзами. Вимагає високого рівня безпеки.',
-        'API Gateway': 'Єдина точка входу для всіх зовнішніх запитів. Маршрутизує запити до відповідних мікросервісів.',
-        'Контейнер': 'Ізольоване середовище для запуску коду мікросервісу. Дозволяє легко масштабувати та розгортати додатки.'
-    };
-
-    // --- Таймер для регулятора ---
     let lastAdjustmentTime = 0;
     const ADJUSTMENT_INTERVAL = 1000;
     
-    // --- ЗМІННІ для симуляції ---
-    let simulationState = 'normal';
-    let stateEndTime = 0;
-    let stableLoadValue = 0.5;
-
-    
+    async function main() {
+        initializeScene();
+        await createAndTrainModel();
+        createDatacenter();
+        setupEventHandlers();
+        animate();
+        statusText.textContent = "Готово";
+    }
 
     function initializeScene() {
         clock = new THREE.Clock();
         scene = new THREE.Scene();
         scene.background = new THREE.Color(0x1a1a1a);
         camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.set(8, 6, 8);
+        camera.position.set(0, 5, 12);
         scene.add(new THREE.AmbientLight(0x404040, 1.5));
         const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
         dirLight.position.set(10, 10, 5);
@@ -86,51 +84,51 @@ window.onload = () => {
     function createDatacenter() {
         datacenter = new THREE.Group();
         scene.add(datacenter);
-
         const grid = new THREE.GridHelper(20, 20, 0x444444, 0x222222);
         datacenter.add(grid);
-
         createServerRacks();
+        const mainRack = serverRacks.find(r => r.userData.isPrimary);
+        createAllMicroservices(mainRack);
+    }
 
-        // --- ВИПРАВЛЕНО: Всі мікросервіси тепер належать до основного кластера ---
-        
-        // Розміщуємо мікросервіси навколо центральної точки (-5, 2, 0)
-        const mainClusterCenter = new THREE.Vector3(-5, 2, 0);
-
-        const service1 = createMicroservice('Аутентифікація', 0x00ff00, mainClusterCenter.x, mainClusterCenter.y, mainClusterCenter.z + 1.5);
-        const service2 = createMicroservice('Профілі', 0xffff00, mainClusterCenter.x, mainClusterCenter.y, mainClusterCenter.z - 1.5);
-        const service3 = createMicroservice('Платежі', 0xff0000, mainClusterCenter.x - 1.5, mainClusterCenter.y, mainClusterCenter.z);
-        const service4 = createMicroservice('API Gateway', 0x00ffff, mainClusterCenter.x + 1.5, mainClusterCenter.y, mainClusterCenter.z);
-        
-        microservices.push(service1, service2, service3, service4);
+    function createServerRacks() {
+        const rackGeometry = new THREE.BoxGeometry(2, 4.5, 1.5);
+        const mainRackMaterial = new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.8 });
+        const mainRack = new THREE.Mesh(rackGeometry, mainRackMaterial);
+        mainRack.position.set(-5, 2.25, 0);
+        mainRack.userData = { name: 'Серверна стійка (Основна)', isPrimary: true };
+        datacenter.add(mainRack);
+        serverRacks.push(mainRack);
+        const backupRackMaterial = new THREE.MeshStandardMaterial({ color: 0x1d1d2b, roughness: 0.9 });
+        const backupRack = new THREE.Mesh(rackGeometry, backupRackMaterial);
+        backupRack.position.set(5, 2.25, 0);
+        backupRack.userData = { name: 'Серверна стійка (Резервна)', isPrimary: false };
+        datacenter.add(backupRack);
+        serverRacks.push(backupRack);
+    }
+    
+    function createAllMicroservices(parentRack) {
+        const center = parentRack.position;
+        const service1 = createMicroservice('Аутентифікація', 0x00ff00, center.x, center.y, center.z + 1.5);
+        const service2 = createMicroservice('Профілі', 0xffff00, center.x, center.y, center.z - 1.5);
+        const service3 = createMicroservice('Платежі', 0xff0000, center.x + 1.5, center.y, center.z);
+        const service4 = createMicroservice('API Gateway', 0x00ffff, center.x - 1.5, center.y, center.z);
+        microservices = [service1, service2, service3, service4];
         microservices.forEach(ms => datacenter.add(ms));
         serviceCountEl.textContent = microservices.length;
-        
-        // Додаємо початкові контейнери до відповідних сервісів
         addContainers(1, service1, true);
         addContainers(1, service2, true);
         addContainers(1, service3, true);
         addContainers(1, service4, true);
     }
-
-    function createServerRacks() {
-        const rackGeometry = new THREE.BoxGeometry(2, 4.5, 1.5); // Зробимо їх трохи більшими
-        
-        // Основний кластер (трохи яскравіший)
-        const mainRackMaterial = new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.8 });
-        const mainRack = new THREE.Mesh(rackGeometry, mainRackMaterial);
-        mainRack.position.set(-5, 2.25, 0);
-        mainRack.userData = { name: 'Серверна стійка (Основна)' };
-        datacenter.add(mainRack);
-        serverRacks.push(mainRack);
-
-        // Резервний кластер (темніший, синюватий)
-        const backupRackMaterial = new THREE.MeshStandardMaterial({ color: 0x1d1d2b, roughness: 0.9 });
-        const backupRack = new THREE.Mesh(rackGeometry, backupRackMaterial);
-        backupRack.position.set(5, 2.25, 0);
-        backupRack.userData = { name: 'Серверна стійка (Резервна)' };
-        datacenter.add(backupRack);
-        serverRacks.push(backupRack);
+    
+    function clearAllMicroservices() {
+        microservices.forEach(ms => datacenter.remove(ms));
+        containers.forEach(c => datacenter.remove(c));
+        microservices = [];
+        containers = [];
+        containerCountEl.textContent = 0;
+        serviceCountEl.textContent = 0;
     }
 
     function createMicroservice(name, color, x, y, z) {
@@ -159,12 +157,8 @@ window.onload = () => {
             const angle = (containerCount % 8) * (Math.PI / 4) + Math.random() * 0.2;
             container.position.set(microservice.position.x + Math.cos(angle) * radius, microservice.position.y, microservice.position.z + Math.sin(angle) * radius);
             container.userData = { service: microservice, timeOffset: Math.random() * 100 };
-            if (isInstant) {
-                container.scale.set(1, 1, 1);
-            } else {
-                container.scale.set(0.01, 0.01, 0.01);
-                animateScale(container, new THREE.Vector3(1, 1, 1), 0.5);
-            }
+            if (isInstant) { container.scale.set(1, 1, 1); } 
+            else { container.scale.set(0.01, 0.01, 0.01); animateScale(container, new THREE.Vector3(1, 1, 1), 0.5); }
             microservice.userData.containers.push(container);
             containers.push(container);
             datacenter.add(container);
@@ -176,12 +170,8 @@ window.onload = () => {
         if (!microservice || microservice.userData.containers.length <= 1) return; 
         const containerToRemove = microservice.userData.containers.pop();
         const indexInGlobalArray = containers.indexOf(containerToRemove);
-        if (indexInGlobalArray > -1) {
-            containers.splice(indexInGlobalArray, 1);
-        }
-        animateScale(containerToRemove, new THREE.Vector3(0.01, 0.01, 0.01), 0.5, () => {
-             datacenter.remove(containerToRemove);
-        });
+        if (indexInGlobalArray > -1) { containers.splice(indexInGlobalArray, 1); }
+        animateScale(containerToRemove, new THREE.Vector3(0.01, 0.01, 0.01), 0.5, () => { datacenter.remove(containerToRemove); });
         containerCountEl.textContent = containers.length;
     }
     
@@ -192,11 +182,8 @@ window.onload = () => {
             const elapsed = (performance.now() - start) / 1000;
             const progress = Math.min(elapsed / duration, 1);
             object.scale.lerpVectors(startScale, targetScale, progress);
-            if (progress < 1) {
-                requestAnimationFrame(scaleStep);
-            } else {
-                if (onComplete) onComplete();
-            }
+            if (progress < 1) { requestAnimationFrame(scaleStep); } 
+            else { if (onComplete) onComplete(); }
         }
         scaleStep();
     }
@@ -228,14 +215,17 @@ window.onload = () => {
             simulationActive = !simulationActive;
             simButton.textContent = simulationActive ? "⏸️ Зупинити симуляцію" : "▶️ Симулювати навантаження";
         };
+        failoverBtn.onclick = () => {
+            isFailoverActive = !isFailoverActive;
+            if (isFailoverActive) {
+                simulateFailure();
+            } else {
+                repairSystem();
+            }
+        };
         modeSwitch.onchange = (event) => {
             isAutoMode = event.target.checked;
             sliderWrapper.style.display = isAutoMode ? 'none' : 'flex';
-            if (!isAutoMode) {
-                const manualLoad = parseFloat(loadSlider.value) / 100;
-                loadHistory.push(manualLoad);
-                if (loadHistory.length > 10) loadHistory.shift();
-            }
         };
         loadSlider.oninput = (event) => {
             if (!isAutoMode) {
@@ -245,53 +235,60 @@ window.onload = () => {
                 if (loadHistory.length > 10) loadHistory.shift();
             }
         };
-        // Новий обробник кліку мишкою по сцені
         renderer.domElement.addEventListener('mousedown', onDocumentMouseDown, false);
-        
-        // Обробник для закриття інфо-вікна
-        infoCloseBtn.onclick = () => {
-            infoBox.style.display = 'none';
-        };
-
+        infoCloseBtn.onclick = () => { infoBox.style.display = 'none'; };
         window.addEventListener('resize', onWindowResize);
-
-
     }
-
-    // Нова функція для обробки кліків
+    
     function onDocumentMouseDown(event) {
         event.preventDefault();
-        
-        // Переводимо координати кліку в систему координат Three.js (-1 до +1)
         mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
         mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
-        
-        // Оновлюємо Raycaster
         raycaster.setFromCamera(mouse, camera);
-        
-        // Знаходимо об'єкти, з якими перетнувся промінь
-        const intersects = raycaster.intersectObjects(scene.children, true);
-        
+        const intersects = raycaster.intersectObjects([...microservices, ...containers, ...serverRacks]);
         if (intersects.length > 0) {
             let clickedObject = intersects[0].object;
-            
-            // Якщо ми клікнули на контейнер, знаходимо його "батьківський" мікросервіс
+            while (clickedObject.parent && !clickedObject.userData.name) {
+                clickedObject = clickedObject.parent;
+            }
             if (containers.includes(clickedObject)) {
                 showInfo('Контейнер', objectInfo['Контейнер'] + ` Належить до сервісу "${clickedObject.userData.service.userData.name}".`);
-            } else if (microservices.includes(clickedObject)) {
-                // Якщо клікнули на мікросервіс
+            } else if (microservices.includes(clickedObject) || serverRacks.includes(clickedObject)) {
                 showInfo(clickedObject.userData.name, objectInfo[clickedObject.userData.name]);
             }
         }
     }
     
-    // Нова функція для відображення інформації
     function showInfo(title, description) {
         infoTitle.textContent = title;
         infoDescription.textContent = description || "Інформація для цього об'єкта відсутня.";
         infoBox.style.display = 'block';
     }
     
+    function simulateFailure() {
+        statusText.textContent = "Збій основного кластера!";
+        failoverBtn.textContent = "✅ Відновити систему";
+        const mainRack = serverRacks.find(r => r.userData.isPrimary);
+        const backupRack = serverRacks.find(r => !r.userData.isPrimary);
+        mainRack.material.color.setHex(0x550000);
+        mainRack.material.emissive.setHex(0x330000);
+        backupRack.material.color.setHex(0x333333);
+        clearAllMicroservices();
+        createAllMicroservices(backupRack);
+    }
+
+    function repairSystem() {
+        statusText.textContent = "Система відновлена";
+        failoverBtn.textContent = "🚨 Симулювати збій";
+        const mainRack = serverRacks.find(r => r.userData.isPrimary);
+        const backupRack = serverRacks.find(r => !r.userData.isPrimary);
+        mainRack.material.color.setHex(0x333333);
+        mainRack.material.emissive.setHex(0x000000);
+        backupRack.material.color.setHex(0x1d1d2b);
+        clearAllMicroservices();
+        createAllMicroservices(mainRack);
+    }
+
     async function createAndTrainModel() {
         statusText.textContent = "🤖 Тренування ML...";
         let model = tf.sequential();
@@ -316,38 +313,14 @@ window.onload = () => {
     async function handleSimulation() {
         let currentLoad;
         if (isAutoMode) {
-            const now = performance.now();
-            if (now > stateEndTime) {
-                const randomState = Math.random();
-                if (randomState < 0.7) {
-                    simulationState = 'normal';
-                    stateEndTime = now + (Math.random() * 10000 + 5000);
-                } else if (randomState < 0.85) {
-                    simulationState = 'spike';
-                    stateEndTime = now + (Math.random() * 2000 + 1000);
-                } else {
-                    simulationState = 'stable';
-                    stableLoadValue = Math.random() * 0.6 + 0.2;
-                    stateEndTime = now + (Math.random() * 8000 + 4000);
-                }
-            }
-            const baseLoad = (Math.sin(simulationTime) + 1) / 2;
-            const noise = (Math.random() - 0.5) * 0.05;
-            switch (simulationState) {
-                case 'spike': currentLoad = Math.min(1.0, baseLoad + 0.5 + noise); break;
-                case 'stable': currentLoad = stableLoadValue + noise; break;
-                default: currentLoad = baseLoad + noise; break;
-            }
-            simulationTime += 0.005;
-            currentLoad = Math.max(0, Math.min(1, currentLoad));
+            simulationTime += 0.003;
+            currentLoad = (Math.sin(simulationTime) + Math.sin(simulationTime * 2.7)) / 2 * 0.5 + 0.5;
             statusText.textContent = `Навантаження: ${currentLoad.toFixed(2)}`;
         } else {
             currentLoad = parseFloat(loadSlider.value) / 100;
         }
-        
         loadHistory.push(currentLoad);
         if (loadHistory.length > 10) { loadHistory.shift(); }
-        
         if (loadHistory.length === 10 && mlModel) {
             const prediction = await predictLoad(loadHistory);
             if (prediction !== null) {
@@ -404,7 +377,6 @@ window.onload = () => {
             const packet = dataPackets[i];
             packet.userData.progress += delta * 1.5;
             packet.position.lerpVectors(packet.userData.start, packet.userData.end, packet.userData.progress);
-            packet.material.opacity = 1.0 - packet.userData.progress;
             if (packet.userData.progress >= 1) {
                 scene.remove(packet);
                 dataPackets.splice(i, 1);
@@ -416,21 +388,6 @@ window.onload = () => {
         renderer.render(scene, camera);
         labelRenderer.render(scene, camera);
     }
-
-    // --- ЗАПУСК ПРОГРАМИ ---
-    async function startApp() {
-        try {
-            initializeScene();
-            await createAndTrainModel();
-            createDatacenter();
-            setupEventHandlers();
-            animate();
-            statusText.textContent = "Готово";
-        } catch (error) {
-            console.error("❌ Помилка ініціалізації:", error);
-            statusText.textContent = "Помилка!";
-        }
-    }
     
-    startApp();
+    main();
 };

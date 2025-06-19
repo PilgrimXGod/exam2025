@@ -213,6 +213,13 @@
         #info-box .close-btn:hover {
             color: #fff;
         }
+        .btn-danger {
+            background: linear-gradient(45deg, #d9534f, #c9302c);
+        }
+        .btn-danger:hover {
+            background: linear-gradient(45deg, #c9302c, #ac2925);
+            box-shadow: 0 4px 15px rgba(217, 83, 79, 0.4);
+        }
     </style>
 </head>
 <body>
@@ -220,6 +227,7 @@
         <h2>🏢 Дата-центр Контроль</h2>
         <div class="controls">
             <button id="simulate-load-btn" class="btn-primary">▶️ Симулювати навантаження</button>
+            <button id="failover-btn" class="btn-danger">🚨 Симулювати збій</button>
         </div>
         
         <div class="manual-controls">
