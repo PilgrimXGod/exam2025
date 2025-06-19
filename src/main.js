@@ -141,6 +141,10 @@ window.onload = function() {
                 
                 scene.add(serverRackModel);
 
+                // === ДОДАЙ ЦЕЙ РЯДОК ===
+                serverRackModel.scale.set(0.5, 0.5, 0.5); // Встановимо початковий масштаб
+                // ======================
+
                 // === ДІАГНОСТИКА: Додаємо жовту рамку навколо моделі ===
                 const boxHelper = new THREE.BoxHelper( serverRackModel, 0xffff00 );
                 scene.add( boxHelper );
