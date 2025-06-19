@@ -5,75 +5,67 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     
-    <!-- Підключення бібліотек -->
-    <script src="https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.11.0/dist/tf.min.js"></script>
+    <!-- Підключення бібліотек з CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tensorflow/4.10.0/tf.min.js"></script>
     
-    <!-- Підключаємо наші локальні копії бібліотек -->
-    <script src="./libs/three/GLTFLoader.js"></script>
-    <script src="./libs/three/OrbitControls.js"></script>
+    <!-- ВАЖЛИВО: Додаємо скрипт для тексту -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/renderers/CSS2DRenderer.js"></script>
     
     <style>
-        body { margin: 0; overflow: hidden; background-color: #333; color: white; font-family: sans-serif; }
+        body { margin: 0; overflow: hidden; background-color: #1a1a1a; color: white; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
         canvas { display: block; }
-        #ui-container { position: absolute; top: 10px; left: 10px; width: 280px; background: rgba(0, 0, 0, 0.6); padding: 15px; border-radius: 10px; }
-        button { width: 100%; padding: 10px; background-color: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; margin-bottom: 10px; }
-        button:hover { background-color: #0056b3; }
-        p { margin: 5px 0; }
+
+        /* Панель UI */
+        .ui-panel { position: absolute; top: 15px; left: 15px; width: 300px; background: rgba(40, 40, 40, 0.85); backdrop-filter: blur(10px); padding: 20px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.1); box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1); }
+        .ui-panel h2 { margin-top: 0; font-size: 18px; border-bottom: 1px solid rgba(255, 255, 255, 0.2); padding-bottom: 10px; }
+        .ui-panel h3 { font-size: 14px; color: #aaa; margin-top: 20px; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 1px; }
+        
+        /* Кнопка */
+        .btn-primary { width: 100%; padding: 12px; background: linear-gradient(45deg, #007bff, #0056b3); color: white; border: none; border-radius: 8px; cursor: pointer; margin-bottom: 15px; font-size: 16px; transition: all 0.2s ease; }
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 4px 15px rgba(0, 123, 255, 0.4); }
+        
+        /* Секція статусу */
+        .status-item { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 14px; }
+        .status-item .label { color: #ccc; }
+        .status-item .value { font-weight: bold; }
+        
+        /* Секція статистики */
+        .stat-item { display: flex; justify-content: space-between; background: rgba(255, 255, 255, 0.05); padding: 8px; border-radius: 5px; margin-bottom: 5px; }
+        
+        /* Секція допомоги */
+        .help-section ul { list-style: none; padding: 0; margin: 0; font-size: 12px; color: #999; }
+        .help-section li { margin-bottom: 5px; }
+
+        /* Стилі для текстових міток у 3D */
+        .label { color: #FFF; font-family: sans-serif; padding: 5px 10px; background: rgba(0, 0, 0, 0.7); border-radius: 5px; font-size: 14px; pointer-events: none; }
     </style>
 </head>
 <body>
-    <!-- UI панель керування -->
     <div class="ui-panel">
         <h2>🏢 Дата-центр Контроль</h2>
-        
         <div class="controls">
-            <button id="simulate-load-btn" class="btn-primary">
-                ▶️ Симулювати навантаження
-            </button>
+            <button id="simulate-load-btn" class="btn-primary">▶️ Симулювати навантаження</button>
         </div>
-        
         <div class="status-section">
-            <div class="status-item">
-                <span class="label">Статус:</span>
-                <span id="status-text" class="value">Ініціалізація...</span>
-            </div>
-            
-            <div class="status-item">
-                <span class="label">ML Прогноз:</span>
-                <span id="prediction-text" class="value">Тренування...</span>
-            </div>
+            <div class="status-item"><span class="label">Статус:</span><span id="status-text" class="value">Ініціалізація...</span></div>
+            <div class="status-item"><span class="label">ML Прогноз:</span><span id="prediction-text" class="value">-</span></div>
         </div>
-        
-        <div class="info-section">
-            <h3>📊 Статистика</h3>
-            <div class="stats">
-                <div class="stat-item">
-                    <span class="stat-label">Сервісів:</span>
-                    <span id="service-count" class="stat-value">0</span>
-                </div>
-                <div class="stat-item">
-                    <span class="stat-label">Контейнерів:</span>
-                    <span id="container-count" class="stat-value">0</span>
-                </div>
-            </div>
+        <h3>📊 Статистика</h3>
+        <div class="stats">
+            <div class="stat-item"><span class="stat-label">Сервісів:</span><span id="service-count" class="stat-value">0</span></div>
+            <div class="stat-item"><span class="stat-label">Контейнерів:</span><span id="container-count" class="stat-value">0</span></div>
         </div>
-        
+        <h3>💡 Керування</h3>
         <div class="help-section">
-            <h3>💡 Керування</h3>
             <ul>
-                <li>🖱️ ЛКМ - обертання камери</li>
-                <li>🎡 Колесо - наближення/віддалення</li>
-                <li>📊 Автомасштабування при високому навантаженні</li>
+                <li>🖱️ ЛКМ + рух - обертання</li>
+                <li>🎡 Колесо - наближення</li>
             </ul>
         </div>
     </div>
 
-    <!-- Завантаження бібліотек з CDN -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/tensorflow/4.10.0/tf.min.js"></script>
-    
-    <!-- Головний скрипт -->
+    <!-- Наш головний скрипт -->
     <script src="src/main.js"></script>
 </body>
 </html>
