@@ -5,10 +5,10 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     
-    <!-- Підключення бібліотек з CDN -->
-    <script src="https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.149.0/examples/js/loaders/GLTFLoader.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.149.0/examples/js/controls/OrbitControls.js"></script>
+    <!--
+        Підключаємо тільки ті бібліотеки, які не будемо імпортувати як ES-модулі.
+        Three.js, GLTFLoader та OrbitControls ми імпортуємо прямо в main.js.
+    -->
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.11.0/dist/tf.min.js"></script>
     
     <style>
@@ -83,8 +83,10 @@
         <p>Прогноз: <span id="prediction-text">-</span></p>
     </div>
 
-    <!-- Підключаємо наш головний скрипт. 'defer' гарантує,
-         що він виконається після того, як всі бібліотеки вище будуть завантажені. -->
-    <script src="./src/main.js" defer></script>
+    <!-- 
+        ВАЖЛИВО: Підключаємо наш головний скрипт з атрибутом type="module".
+        Це дозволяє використовувати 'import' всередині main.js.
+    -->
+    <script type="module" src="./src/main.js"></script>
 </body>
 </html>
