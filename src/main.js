@@ -71,6 +71,9 @@ window.onload = function() {
         scene.background = new THREE.Color(0xeeeeee);
         scene.fog = new THREE.Fog(0xeeeeee, 10, 50);
 
+        const gridHelper = new THREE.GridHelper( 10, 10 ); // Створюємо сітку 10x10
+        scene.add( gridHelper );
+
         camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
         camera.position.set(0, 1, 4);
 
