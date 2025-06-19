@@ -5,11 +5,13 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     
-    <!-- ПІДКЛЮЧАЄМО ВСІ СКРИПТИ ТУТ -->
+    <!-- ПІДКЛЮЧАЄМО БІБЛІОТЕКИ: ОСНОВНІ З CDN, ДОДАТКОВІ - ЛОКАЛЬНО -->
     <script src="https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.149.0/examples/js/loaders/GLTFLoader.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.149.0/examples/js/controls/OrbitControls.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.11.0/dist/tf.min.js"></script>
+    
+    <!-- Підключаємо наші локальні копії -->
+    <script src="./libs/three/GLTFLoader.js"></script>
+    <script src="./libs/three/OrbitControls.js"></script>
     
     <style>
         body { margin: 0; overflow: hidden; background-color: #f0f0f0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
