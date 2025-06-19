@@ -1,4 +1,4 @@
-// Файл: src/main.js (Остаточна, виправлена версія)
+// Файл: src/main.js (Остаточна версія з виправленим порядком)
 
 window.onload = () => {
     'use strict';
@@ -15,11 +15,7 @@ window.onload = () => {
     const dataPackets = [];
     let mlModel = null, simulationActive = false, simulationTime = 0;
     const loadHistory = [];
-    
-    const MIN_CONTAINERS = 4;
-    const MAX_CONTAINERS = 50;
-    const LOAD_THRESHOLD = 0.75;
-    const DEPROVISION_THRESHOLD = 0.3;
+    const MIN_CONTAINERS = 4, MAX_CONTAINERS = 50, LOAD_THRESHOLD = 0.75, DEPROVISION_THRESHOLD = 0.3;
 
     // --- Елементи UI ---
     const simButton = document.getElementById('simulate-load-btn');
@@ -32,34 +28,27 @@ window.onload = () => {
     let lastAdjustmentTime = 0;
     const ADJUSTMENT_INTERVAL = 1000;
 
-    // ===============================================================
-    // ВИЗНАЧЕННЯ ВСІХ ФУНКЦІЙ (БЛОК 1)
-    // ===============================================================
+    // --- ВИЗНАЧЕННЯ ВСІХ ФУНКЦІЙ ---
 
     function initializeScene() {
         clock = new THREE.Clock();
         scene = new THREE.Scene();
         scene.background = new THREE.Color(0x1a1a1a);
-        
         camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
         camera.position.set(8, 6, 8);
-
         scene.add(new THREE.AmbientLight(0x404040, 1.5));
         const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
         dirLight.position.set(10, 10, 5);
         scene.add(dirLight);
-
         renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         document.body.appendChild(renderer.domElement);
-        
         labelRenderer = new THREE.CSS2DRenderer();
         labelRenderer.setSize(window.innerWidth, window.innerHeight);
         labelRenderer.domElement.style.position = 'absolute';
         labelRenderer.domElement.style.top = '0px';
         labelRenderer.domElement.style.pointerEvents = 'none';
         document.body.appendChild(labelRenderer.domElement);
-
         initializeOrbitControls();
         controls = new THREE.OrbitControls(camera, renderer.domElement);
         controls.target.set(0, 1.5, 0);
@@ -69,21 +58,16 @@ window.onload = () => {
     function createDatacenter() {
         datacenter = new THREE.Group();
         scene.add(datacenter);
-
         const grid = new THREE.GridHelper(20, 20, 0x444444, 0x222222);
         datacenter.add(grid);
-
         createServerRacks();
-
         const service1 = createMicroservice('Аутентифікація', 0x00ff00, -3, 2, -1);
         const service2 = createMicroservice('Профілі', 0xffff00, -3, 2, 1);
         const service3 = createMicroservice('Платежі', 0xff0000, 3, 2, -1);
         const service4 = createMicroservice('API Gateway', 0x00ffff, 3, 2, 1);
-        
         microservices.push(service1, service2, service3, service4);
         microservices.forEach(ms => datacenter.add(ms));
         serviceCountEl.textContent = microservices.length;
-        
         addContainers(1, service1, true);
         addContainers(1, service2, true);
         addContainers(1, service3, true);
@@ -103,49 +87,36 @@ window.onload = () => {
 
     function createMicroservice(name, color, x, y, z) {
         const serviceGeometry = new THREE.BoxGeometry(1.2, 0.6, 1.2);
-        const serviceMaterial = new THREE.MeshStandardMaterial({
-            color: color, transparent: true, opacity: 0.8, emissive: color, emissiveIntensity: 0.2
-        });
+        const serviceMaterial = new THREE.MeshStandardMaterial({ color: color, transparent: true, opacity: 0.8, emissive: color, emissiveIntensity: 0.2 });
         const serviceMesh = new THREE.Mesh(serviceGeometry, serviceMaterial);
         serviceMesh.position.set(x, y, z);
-        
         const labelDiv = document.createElement('div');
         labelDiv.className = 'label';
         labelDiv.textContent = name;
         const label = new THREE.CSS2DObject(labelDiv);
         label.position.set(0, 0.6, 0);
         serviceMesh.add(label);
-        
         serviceMesh.userData = { name: name, containers: [] };
         return serviceMesh;
     }
 
     function addContainers(count, microservice, isInstant = false) {
         if (!microservice) return;
-        
         for (let i = 0; i < count; i++) {
             const containerGeometry = new THREE.SphereGeometry(0.15, 16, 16);
-            const containerMaterial = new THREE.MeshStandardMaterial({
-                color: microservice.material.color, emissive: microservice.material.color, emissiveIntensity: 0.6
-            });
+            const containerMaterial = new THREE.MeshStandardMaterial({ color: microservice.material.color, emissive: microservice.material.color, emissiveIntensity: 0.6 });
             const container = new THREE.Mesh(containerGeometry, containerMaterial);
             const containerCount = microservice.userData.containers.length;
             const radius = 1 + Math.floor(containerCount / 8) * 0.4;
             const angle = (containerCount % 8) * (Math.PI / 4) + Math.random() * 0.2;
-            container.position.set(
-                microservice.position.x + Math.cos(angle) * radius,
-                microservice.position.y,
-                microservice.position.z + Math.sin(angle) * radius
-            );
+            container.position.set(microservice.position.x + Math.cos(angle) * radius, microservice.position.y, microservice.position.z + Math.sin(angle) * radius);
             container.userData = { service: microservice, timeOffset: Math.random() * 100 };
-            
             if (isInstant) {
                 container.scale.set(1, 1, 1);
             } else {
                 container.scale.set(0.01, 0.01, 0.01);
                 animateScale(container, new THREE.Vector3(1, 1, 1), 0.5);
             }
-            
             microservice.userData.containers.push(container);
             containers.push(container);
             datacenter.add(container);
@@ -250,7 +221,7 @@ window.onload = () => {
             const targetServiceWithMostContainers = microservices.reduce((prev, curr) => 
                 prev.userData.containers.length > curr.userData.containers.length ? prev : curr
             );
-            if (targetServiceWithMostContainers.userData.containers.length > 0) {
+            if (targetServiceWithMostContainers.userData.containers.length > 1) { // Змінено, щоб не видаляти останній контейнер сервісу
                 statusText.innerHTML = `📉 Навантаження спадає...`;
                 removeContainer(targetServiceWithMostContainers);
             }
@@ -281,40 +252,33 @@ window.onload = () => {
     function animate() {
         requestAnimationFrame(animate);
         controls.update();
-
         const time = performance.now() * 0.001;
-
         containers.forEach(container => {
             const scale = 1 + Math.sin(time * 5 + container.userData.timeOffset) * 0.2;
             container.scale.lerp(new THREE.Vector3(scale, scale, scale), 0.1);
         });
-        
         if (simulationActive && Math.random() < 0.1 && dataPackets.length < 20) {
             createDataPacket();
         }
-
         for (let i = dataPackets.length - 1; i >= 0; i--) {
             const packet = dataPackets[i];
             const delta = clock.getDelta();
             packet.userData.progress += delta * 1.5;
             packet.position.lerpVectors(packet.userData.start, packet.userData.end, packet.userData.progress);
             packet.material.opacity = 1.0 - packet.userData.progress;
-            
             if (packet.userData.progress >= 1) {
                 scene.remove(packet);
                 dataPackets.splice(i, 1);
             }
         }
-        
         if (simulationActive) {
             handleSimulation();
         }
-
         renderer.render(scene, camera);
         labelRenderer.render(scene, camera);
     }
 
-    // --- ЗАПУСК ПРОГРАМИ ---
+    // --- ОСНОВНА ФУНКЦІЯ, ЯКА ЗАПУСКАЄ ВСЕ ---
     async function startApp() {
         try {
             initializeScene();
