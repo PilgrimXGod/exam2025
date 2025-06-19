@@ -5,7 +5,10 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     
-    <!-- Підключаємо тільки TensorFlow.js -->
+    <!-- ПІДКЛЮЧАЄМО ВСІ СКРИПТИ ТУТ -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.149.0/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.149.0/examples/js/controls/OrbitControls.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.11.0/dist/tf.min.js"></script>
     
     <style>
@@ -26,7 +29,7 @@
         <p>Прогноз: <span id="prediction-text">-</span></p>
     </div>
 
-    <!-- ВАЖЛИВО: Правильний шлях до файлу в папці src -->
-    <script type="module" src="./src/main.js"></script>
+    <!-- ВАЖЛИВО: main.js підключається в кінці і без type="module" -->
+    <script src="./src/main.js"></script>
 </body>
 </html>
