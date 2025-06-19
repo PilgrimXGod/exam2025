@@ -1,4 +1,4 @@
-// Файл: src/main.js (Повна фінальна версія з ручним/автоматичним режимом та масштабуванням по прогнозу)
+// Файл: src/main.js (Фінальна версія з виправленням області видимості змінних симуляції)
 
 window.onload = () => {
     'use strict';
@@ -34,6 +34,11 @@ window.onload = () => {
     // --- Таймер для регулятора ---
     let lastAdjustmentTime = 0;
     const ADJUSTMENT_INTERVAL = 1000;
+    
+    // --- ЗМІННІ для симуляції ---
+    let simulationState = 'normal';
+    let stateEndTime = 0;
+    let stableLoadValue = 0.5;
 
     // --- Основна функція ---
     async function main() {
@@ -54,26 +59,21 @@ window.onload = () => {
         clock = new THREE.Clock();
         scene = new THREE.Scene();
         scene.background = new THREE.Color(0x1a1a1a);
-        
         camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
         camera.position.set(8, 6, 8);
-
         scene.add(new THREE.AmbientLight(0x404040, 1.5));
         const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
         dirLight.position.set(10, 10, 5);
         scene.add(dirLight);
-
         renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         document.body.appendChild(renderer.domElement);
-        
         labelRenderer = new THREE.CSS2DRenderer();
         labelRenderer.setSize(window.innerWidth, window.innerHeight);
         labelRenderer.domElement.style.position = 'absolute';
         labelRenderer.domElement.style.top = '0px';
         labelRenderer.domElement.style.pointerEvents = 'none';
         document.body.appendChild(labelRenderer.domElement);
-
         initializeOrbitControls();
         controls = new THREE.OrbitControls(camera, renderer.domElement);
         controls.target.set(0, 1.5, 0);
@@ -205,7 +205,6 @@ window.onload = () => {
             simulationActive = !simulationActive;
             simButton.textContent = simulationActive ? "⏸️ Зупинити симуляцію" : "▶️ Симулювати навантаження";
         };
-
         modeSwitch.onchange = (event) => {
             isAutoMode = event.target.checked;
             sliderWrapper.style.display = isAutoMode ? 'none' : 'flex';
@@ -215,7 +214,6 @@ window.onload = () => {
                 if (loadHistory.length > 10) loadHistory.shift();
             }
         };
-
         loadSlider.oninput = (event) => {
             if (!isAutoMode) {
                 const manualLoad = parseFloat(event.target.value) / 100;
@@ -224,10 +222,9 @@ window.onload = () => {
                 if (loadHistory.length > 10) loadHistory.shift();
             }
         };
-
         window.addEventListener('resize', onWindowResize);
     }
-
+    
     async function createAndTrainModel() {
         statusText.textContent = "🤖 Тренування ML...";
         let model = tf.sequential();
@@ -250,48 +247,34 @@ window.onload = () => {
     }
     
     async function handleSimulation() {
-        simulationTime += 0.01; // Повільний базовий час
-        const now = performance.now();
         let currentLoad;
-
         if (isAutoMode) {
-            // Керування станами симуляції
+            const now = performance.now();
             if (now > stateEndTime) {
                 const randomState = Math.random();
-                if (randomState < 0.7) { // 70% часу - нормальний режим
+                if (randomState < 0.7) {
                     simulationState = 'normal';
-                    stateEndTime = now + (Math.random() * 10000 + 5000); // 5-15 секунд
-                } else if (randomState < 0.85) { // 15% часу - сплеск
+                    stateEndTime = now + (Math.random() * 10000 + 5000);
+                } else if (randomState < 0.85) {
                     simulationState = 'spike';
-                    stateEndTime = now + (Math.random() * 2000 + 1000); // 1-3 секунди
-                } else { // 15% часу - стабільність
+                    stateEndTime = now + (Math.random() * 2000 + 1000);
+                } else {
                     simulationState = 'stable';
-                    stableLoadValue = Math.random() * 0.6 + 0.2; // Стабільне навантаження від 20% до 80%
-                    stateEndTime = now + (Math.random() * 8000 + 4000); // 4-12 секунд
+                    stableLoadValue = Math.random() * 0.6 + 0.2;
+                    stateEndTime = now + (Math.random() * 8000 + 4000);
                 }
             }
-
-            // Розрахунок навантаження на основі стану
-            const baseLoad = (Math.sin(simulationTime) + 1) / 2; // Плавна синусоїда 0..1
-            const noise = (Math.random() - 0.5) * 0.05; // Невеликий шум
-
+            const baseLoad = (Math.sin(simulationTime) + 1) / 2;
+            const noise = (Math.random() - 0.5) * 0.05;
             switch (simulationState) {
-                case 'spike':
-                    currentLoad = Math.min(1.0, baseLoad + 0.5 + noise); // Різкий сплеск
-                    break;
-                case 'stable':
-                    currentLoad = stableLoadValue + noise; // Тримаємо стабільне значення
-                    break;
-                default: // 'normal'
-                    currentLoad = baseLoad + noise;
-                    break;
+                case 'spike': currentLoad = Math.min(1.0, baseLoad + 0.5 + noise); break;
+                case 'stable': currentLoad = stableLoadValue + noise; break;
+                default: currentLoad = baseLoad + noise; break;
             }
-            
-            currentLoad = Math.max(0, Math.min(1, currentLoad)); // Обмежуємо значення в [0, 1]
+            simulationTime += 0.005;
+            currentLoad = Math.max(0, Math.min(1, currentLoad));
             statusText.textContent = `Навантаження: ${currentLoad.toFixed(2)}`;
-
         } else {
-            // Ручний режим
             currentLoad = parseFloat(loadSlider.value) / 100;
         }
         
@@ -316,14 +299,10 @@ window.onload = () => {
         const currentCount = containers.length;
         if (currentCount < targetCount) {
             const targetService = microservices[Math.floor(Math.random() * microservices.length)];
-            statusText.innerHTML = `📈 Прогноз: ${predictedLoad.toFixed(2)}. Додаємо...`;
             addContainers(1, targetService);
         } else if (currentCount > targetCount && currentCount > MIN_CONTAINERS) {
-            const targetServiceWithMostContainers = microservices.reduce((prev, curr) => 
-                prev.userData.containers.length > curr.userData.containers.length ? prev : curr
-            );
+            const targetServiceWithMostContainers = microservices.reduce((prev, curr) => prev.userData.containers.length > curr.userData.containers.length ? prev : curr);
             if (targetServiceWithMostContainers.userData.containers.length > 1) {
-                statusText.innerHTML = `📉 Прогноз: ${predictedLoad.toFixed(2)}. Видаляємо...`;
                 removeContainer(targetServiceWithMostContainers);
             }
         }
@@ -345,32 +324,28 @@ window.onload = () => {
     function animate() {
         requestAnimationFrame(animate);
         controls.update();
-
+        const delta = clock.getDelta();
         const time = performance.now() * 0.001;
         containers.forEach(container => {
             const scale = 1 + Math.sin(time * 5 + container.userData.timeOffset) * 0.2;
             container.scale.lerp(new THREE.Vector3(scale, scale, scale), 0.1);
         });
-        
         if (simulationActive && Math.random() < 0.1 && dataPackets.length < 20) {
             createDataPacket();
         }
-
         for (let i = dataPackets.length - 1; i >= 0; i--) {
             const packet = dataPackets[i];
-            const delta = Math.min(clock.getDelta(), 0.1);
             packet.userData.progress += delta * 1.5;
             packet.position.lerpVectors(packet.userData.start, packet.userData.end, packet.userData.progress);
+            packet.material.opacity = 1.0 - packet.userData.progress;
             if (packet.userData.progress >= 1) {
                 scene.remove(packet);
                 dataPackets.splice(i, 1);
             }
         }
-        
         if (simulationActive) {
             handleSimulation();
         }
-
         renderer.render(scene, camera);
         labelRenderer.render(scene, camera);
     }
