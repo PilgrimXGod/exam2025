@@ -1,4 +1,4 @@
-// Файл: src/main.js (Повна версія з onWindowResize)
+// Файл: src/main.js (Повна фінальна версія з ручним/автоматичним режимом та масштабуванням по прогнозу)
 
 window.onload = () => {
     'use strict';
@@ -18,8 +18,8 @@ window.onload = () => {
     
     const MIN_CONTAINERS = 4;
     const MAX_CONTAINERS = 50;
-    const LOAD_THRESHOLD = 0.75;
-    const DEPROVISION_THRESHOLD = 0.3;
+    
+    let isAutoMode = true;
 
     // --- Елементи UI ---
     const simButton = document.getElementById('simulate-load-btn');
@@ -27,34 +27,53 @@ window.onload = () => {
     const predictionText = document.getElementById('prediction-text');
     const serviceCountEl = document.getElementById('service-count');
     const containerCountEl = document.getElementById('container-count');
+    const modeSwitch = document.getElementById('mode-switch');
+    const sliderWrapper = document.getElementById('slider-wrapper');
+    const loadSlider = document.getElementById('load-slider');
 
     // --- Таймер для регулятора ---
     let lastAdjustmentTime = 0;
     const ADJUSTMENT_INTERVAL = 1000;
 
-    // ===============================================================
-    // ВИЗНАЧЕННЯ ВСІХ ФУНКЦІЙ
-    // ===============================================================
+    // --- Основна функція ---
+    async function main() {
+        try {
+            initializeScene();
+            await createAndTrainModel();
+            createDatacenter();
+            setupEventHandlers();
+            animate();
+            statusText.textContent = "Готово";
+        } catch (error) {
+            console.error("❌ Помилка ініціалізації:", error);
+            statusText.textContent = "Помилка!";
+        }
+    }
 
     function initializeScene() {
         clock = new THREE.Clock();
         scene = new THREE.Scene();
         scene.background = new THREE.Color(0x1a1a1a);
+        
         camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
         camera.position.set(8, 6, 8);
+
         scene.add(new THREE.AmbientLight(0x404040, 1.5));
         const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
         dirLight.position.set(10, 10, 5);
         scene.add(dirLight);
+
         renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         document.body.appendChild(renderer.domElement);
+        
         labelRenderer = new THREE.CSS2DRenderer();
         labelRenderer.setSize(window.innerWidth, window.innerHeight);
         labelRenderer.domElement.style.position = 'absolute';
         labelRenderer.domElement.style.top = '0px';
         labelRenderer.domElement.style.pointerEvents = 'none';
         document.body.appendChild(labelRenderer.domElement);
+
         initializeOrbitControls();
         controls = new THREE.OrbitControls(camera, renderer.domElement);
         controls.target.set(0, 1.5, 0);
@@ -174,6 +193,41 @@ window.onload = () => {
         scene.add(packet);
     }
     
+    function onWindowResize() {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        labelRenderer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    function setupEventHandlers() {
+        simButton.onclick = () => {
+            simulationActive = !simulationActive;
+            simButton.textContent = simulationActive ? "⏸️ Зупинити симуляцію" : "▶️ Симулювати навантаження";
+        };
+
+        modeSwitch.onchange = (event) => {
+            isAutoMode = event.target.checked;
+            sliderWrapper.style.display = isAutoMode ? 'none' : 'flex';
+            if (!isAutoMode) {
+                const manualLoad = parseFloat(loadSlider.value) / 100;
+                loadHistory.push(manualLoad);
+                if (loadHistory.length > 10) loadHistory.shift();
+            }
+        };
+
+        loadSlider.oninput = (event) => {
+            if (!isAutoMode) {
+                const manualLoad = parseFloat(event.target.value) / 100;
+                statusText.textContent = `Навантаження: ${manualLoad.toFixed(2)}`;
+                loadHistory.push(manualLoad);
+                if (loadHistory.length > 10) loadHistory.shift();
+            }
+        };
+
+        window.addEventListener('resize', onWindowResize);
+    }
+
     async function createAndTrainModel() {
         statusText.textContent = "🤖 Тренування ML...";
         let model = tf.sequential();
@@ -196,18 +250,27 @@ window.onload = () => {
     }
     
     async function handleSimulation() {
-        simulationTime += 0.003;
-        const currentLoad = (Math.sin(simulationTime) + Math.sin(simulationTime * 2.7)) / 2 * 0.5 + 0.5;
-        statusText.textContent = `Навантаження: ${currentLoad.toFixed(2)}`;
+        let currentLoad;
+        if (isAutoMode) {
+            simulationTime += 0.003;
+            currentLoad = (Math.sin(simulationTime) + Math.sin(simulationTime * 2.7)) / 2 * 0.5 + 0.5;
+            statusText.textContent = `Навантаження: ${currentLoad.toFixed(2)}`;
+        } else {
+            currentLoad = parseFloat(loadSlider.value) / 100;
+        }
+        
         loadHistory.push(currentLoad);
         if (loadHistory.length > 10) { loadHistory.shift(); }
+        
         if (loadHistory.length === 10 && mlModel) {
             const prediction = await predictLoad(loadHistory);
-            predictionText.textContent = prediction.toFixed(2);
-            const now = performance.now();
-            if (now - lastAdjustmentTime > ADJUSTMENT_INTERVAL) {
-                adjustContainers(prediction);
-                lastAdjustmentTime = now;
+            if (prediction !== null) {
+                predictionText.textContent = prediction.toFixed(2);
+                const now = performance.now();
+                if (now - lastAdjustmentTime > ADJUSTMENT_INTERVAL) {
+                    adjustContainers(prediction);
+                    lastAdjustmentTime = now;
+                }
             }
         }
     }
@@ -217,12 +280,14 @@ window.onload = () => {
         const currentCount = containers.length;
         if (currentCount < targetCount) {
             const targetService = microservices[Math.floor(Math.random() * microservices.length)];
-            statusText.innerHTML = `📈 Навантаження зростає...`;
+            statusText.innerHTML = `📈 Прогноз: ${predictedLoad.toFixed(2)}. Додаємо...`;
             addContainers(1, targetService);
         } else if (currentCount > targetCount && currentCount > MIN_CONTAINERS) {
-            const targetServiceWithMostContainers = microservices.reduce((prev, curr) => prev.userData.containers.length > curr.userData.containers.length ? prev : curr);
+            const targetServiceWithMostContainers = microservices.reduce((prev, curr) => 
+                prev.userData.containers.length > curr.userData.containers.length ? prev : curr
+            );
             if (targetServiceWithMostContainers.userData.containers.length > 1) {
-                statusText.innerHTML = `📉 Навантаження спадає...`;
+                statusText.innerHTML = `📉 Прогноз: ${predictedLoad.toFixed(2)}. Видаляємо...`;
                 removeContainer(targetServiceWithMostContainers);
             }
         }
@@ -240,23 +305,12 @@ window.onload = () => {
     function initializeOrbitControls() {
         THREE.OrbitControls = function(object, domElement) { this.object = object; this.domElement = domElement; this.enabled = true; this.target = new THREE.Vector3(); this.enableDamping = false; this.dampingFactor = 0.05; this.enableZoom = true; this.enableRotate = true; this.enablePan = true; var scope = this; var rotateSpeed = 1.0; var zoomSpeed = 1.0; var spherical = new THREE.Spherical(); var sphericalDelta = new THREE.Spherical(); var scale = 1; var panOffset = new THREE.Vector3(); var rotateStart = new THREE.Vector2(); var rotateEnd = new THREE.Vector2(); var rotateDelta = new THREE.Vector2(); var STATE = { NONE: -1, ROTATE: 0 }; var state = STATE.NONE; this.update = function() { var offset = new THREE.Vector3(); var quat = new THREE.Quaternion().setFromUnitVectors(object.up, new THREE.Vector3(0, 1, 0)); var quatInverse = quat.clone().invert(); var position = scope.object.position; offset.copy(position).sub(scope.target); offset.applyQuaternion(quat); spherical.setFromVector3(offset); if (scope.enableDamping) { spherical.theta += sphericalDelta.theta * scope.dampingFactor; spherical.phi += sphericalDelta.phi * scope.dampingFactor; } else { spherical.theta += sphericalDelta.theta; spherical.phi += sphericalDelta.phi; } spherical.makeSafe(); spherical.radius *= scale; if (scope.enableDamping) { scope.target.addScaledVector(panOffset, scope.dampingFactor); } else { scope.target.add(panOffset); } offset.setFromSpherical(spherical); offset.applyQuaternion(quatInverse); position.copy(scope.target).add(offset); scope.object.lookAt(scope.target); if (scope.enableDamping) { sphericalDelta.theta *= (1 - scope.dampingFactor); sphericalDelta.phi *= (1 - scope.dampingFactor); panOffset.multiplyScalar(1 - scope.dampingFactor); } else { sphericalDelta.set(0, 0, 0); panOffset.set(0, 0, 0); } scale = 1; return true; }; function onMouseDown(event) { if (!scope.enabled) return; event.preventDefault(); if (event.button === 0) { state = STATE.ROTATE; rotateStart.set(event.clientX, event.clientY); } document.addEventListener('mousemove', onMouseMove, false); document.addEventListener('mouseup', onMouseUp, false); } function onMouseMove(event) { if (!scope.enabled) return; event.preventDefault(); if (state === STATE.ROTATE) { rotateEnd.set(event.clientX, event.clientY); rotateDelta.subVectors(rotateEnd, rotateStart).multiplyScalar(rotateSpeed); sphericalDelta.theta -= 2 * Math.PI * rotateDelta.x / scope.domElement.clientWidth; sphericalDelta.phi -= 2 * Math.PI * rotateDelta.y / scope.domElement.clientHeight; rotateStart.copy(rotateEnd); } } function onMouseUp() { if (!scope.enabled) return; document.removeEventListener('mousemove', onMouseMove, false); document.removeEventListener('mouseup', onMouseUp, false); state = STATE.NONE; } function onMouseWheel(event) { if (!scope.enabled || !scope.enableZoom) return; event.preventDefault(); if (event.deltaY < 0) { scale /= Math.pow(0.95, zoomSpeed); } else if (event.deltaY > 0) { scale *= Math.pow(0.95, zoomSpeed); } } if (domElement) { domElement.addEventListener('mousedown', onMouseDown, false); domElement.addEventListener('wheel', onMouseWheel, false); domElement.addEventListener('contextmenu', function(event) { event.preventDefault(); }, false); } };
     }
-
     
-    
-    function onWindowResize() {
-        camera.aspect = window.innerWidth / window.innerHeight;
-        camera.updateProjectionMatrix();
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        labelRenderer.setSize(window.innerWidth, window.innerHeight);
-    }
-
-    // --- Анімаційний цикл ---
     function animate() {
         requestAnimationFrame(animate);
         controls.update();
 
         const time = performance.now() * 0.001;
-
         containers.forEach(container => {
             const scale = 1 + Math.sin(time * 5 + container.userData.timeOffset) * 0.2;
             container.scale.lerp(new THREE.Vector3(scale, scale, scale), 0.1);
@@ -271,8 +325,6 @@ window.onload = () => {
             const delta = clock.getDelta();
             packet.userData.progress += delta * 1.5;
             packet.position.lerpVectors(packet.userData.start, packet.userData.end, packet.userData.progress);
-            packet.material.opacity = 1.0 - packet.userData.progress;
-            
             if (packet.userData.progress >= 1) {
                 scene.remove(packet);
                 dataPackets.splice(i, 1);
@@ -285,15 +337,6 @@ window.onload = () => {
 
         renderer.render(scene, camera);
         labelRenderer.render(scene, camera);
-    }
-
-    // --- Обробники подій ---
-    function setupEventHandlers() {
-        simButton.onclick = () => {
-            simulationActive = !simulationActive;
-            simButton.textContent = simulationActive ? "⏸️ Зупинити симуляцію" : "▶️ Симулювати навантаження";
-        };
-        window.addEventListener('resize', onWindowResize);
     }
 
     // --- ЗАПУСК ПРОГРАМИ ---
