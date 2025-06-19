@@ -23,13 +23,57 @@
     </style>
 </head>
 <body>
-    <div id="ui-container">
-        <button id="simulate-load-btn">Симулювати навантаження</button>
-        <p>Статус: <span id="status-text">Очікування...</span></p>
-        <p>Прогноз: <span id="prediction-text">-</span></p>
+    <!-- UI панель керування -->
+    <div class="ui-panel">
+        <h2>🏢 Дата-центр Контроль</h2>
+        
+        <div class="controls">
+            <button id="simulate-load-btn" class="btn-primary">
+                ▶️ Симулювати навантаження
+            </button>
+        </div>
+        
+        <div class="status-section">
+            <div class="status-item">
+                <span class="label">Статус:</span>
+                <span id="status-text" class="value">Ініціалізація...</span>
+            </div>
+            
+            <div class="status-item">
+                <span class="label">ML Прогноз:</span>
+                <span id="prediction-text" class="value">Тренування...</span>
+            </div>
+        </div>
+        
+        <div class="info-section">
+            <h3>📊 Статистика</h3>
+            <div class="stats">
+                <div class="stat-item">
+                    <span class="stat-label">Сервісів:</span>
+                    <span id="service-count" class="stat-value">0</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Контейнерів:</span>
+                    <span id="container-count" class="stat-value">0</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="help-section">
+            <h3>💡 Керування</h3>
+            <ul>
+                <li>🖱️ ЛКМ - обертання камери</li>
+                <li>🎡 Колесо - наближення/віддалення</li>
+                <li>📊 Автомасштабування при високому навантаженні</li>
+            </ul>
+        </div>
     </div>
 
-    <!-- Наш головний скрипт -->
-    <script src="./src/main.js"></script>
+    <!-- Завантаження бібліотек з CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tensorflow/4.10.0/tf.min.js"></script>
+    
+    <!-- Головний скрипт -->
+    <script src="src/main.js"></script>
 </body>
 </html>
