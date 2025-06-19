@@ -1,17 +1,18 @@
-// Файл: src/main.js (Виправлена версія з правильним порядком функцій)
+// Файл: src/main.js (Повна фінальна версія з анімацією та робочою симуляцією)
 
 window.onload = () => {
     'use strict';
 
     // --- Перевірка завантаження бібліотек ---
-    if (typeof THREE === 'undefined') { alert("Помилка: бібліотека Three.js не завантажилася!"); return; }
-    if (typeof THREE.CSS2DRenderer === 'undefined') { alert("Помилка: бібліотека CSS2DRenderer не завантажилася!"); return; }
-    if (typeof tf === 'undefined') { alert("Помилка: бібліотека TensorFlow.js не завантажилася!"); return; }
+    if (typeof THREE === 'undefined') { alert("Помилка: Three.js не завантажився!"); return; }
+    if (typeof THREE.CSS2DRenderer === 'undefined') { alert("Помилка: CSS2DRenderer не завантажився!"); return; }
+    if (typeof tf === 'undefined') { alert("Помилка: TensorFlow.js не завантажилася!"); return; }
     console.log("✅ Всі бібліотеки успішно завантажені.");
 
     // --- Глобальні змінні ---
     let scene, camera, renderer, controls, labelRenderer;
     let datacenter, microservices = [], containers = [];
+    const dataPackets = []; // Для анімації запитів
     let mlModel = null, simulationActive = false, simulationTime = 0;
     const loadHistory = [], LOAD_THRESHOLD = 0.75;
 
@@ -37,39 +38,6 @@ window.onload = () => {
         }
     }
 
-    // --- Допоміжні функції (ПЕРЕМІЩЕНО ВГОРУ) ---
-    function onWindowResize() {
-        camera.aspect = window.innerWidth / window.innerHeight;
-        camera.updateProjectionMatrix();
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        labelRenderer.setSize(window.innerWidth, window.innerHeight);
-    }
-
-    function animate() {
-        requestAnimationFrame(animate);
-        controls.update();
-        handleSimulation();
-
-        containers.forEach(container => {
-            if (container.userData.service) {
-                container.userData.orbitAngle += 0.02;
-                const service = container.userData.service;
-                const radius = container.userData.orbitRadius;
-                const angle = container.userData.orbitAngle;
-                container.position.x = service.position.x + Math.cos(angle) * radius;
-                container.position.z = service.position.z + Math.sin(angle) * radius;
-            }
-        });
-
-        microservices.forEach((service, index) => {
-            const pulse = Math.sin(simulationTime + index) * 0.05 + 1;
-            service.scale.set(pulse, pulse, pulse);
-        });
-
-        renderer.render(scene, camera);
-        labelRenderer.render(scene, camera);
-    }
-
     // --- Ініціалізація сцени ---
     function initializeScene() {
         scene = new THREE.Scene();
@@ -81,49 +49,32 @@ window.onload = () => {
         scene.add(new THREE.AmbientLight(0x404040, 1.5));
         const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
         dirLight.position.set(10, 10, 5);
-        dirLight.castShadow = true;
         scene.add(dirLight);
-        
-        const greenLight = new THREE.PointLight(0x00ff00, 0.5, 15);
-        greenLight.position.set(-5, 5, -5);
-        scene.add(greenLight);
-
-        const blueLight = new THREE.PointLight(0x0066ff, 0.5, 15);
-        blueLight.position.set(5, 5, 5);
-        scene.add(blueLight);
 
         renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.shadowMap.enabled = true;
         document.body.appendChild(renderer.domElement);
         
         labelRenderer = new THREE.CSS2DRenderer();
         labelRenderer.setSize(window.innerWidth, window.innerHeight);
         labelRenderer.domElement.style.position = 'absolute';
         labelRenderer.domElement.style.top = '0px';
+        labelRenderer.domElement.style.pointerEvents = 'none';
         document.body.appendChild(labelRenderer.domElement);
 
         initializeOrbitControls();
-        controls = new THREE.OrbitControls(camera, labelRenderer.domElement);
+        controls = new THREE.OrbitControls(camera, renderer.domElement);
         controls.target.set(0, 2, 0);
         controls.enableDamping = true;
-        
-        console.log("🎬 Сцена ініціалізована");
     }
 
     // --- Створення сцени ---
     function createDatacenter() {
-        console.log("🏗️ Створюємо дата-центр та мікросервіси.");
-        
         datacenter = new THREE.Group();
         scene.add(datacenter);
 
-        const floorGeometry = new THREE.PlaneGeometry(20, 20);
-        const floorMaterial = new THREE.MeshLambertMaterial({ color: 0x333333 });
-        const floor = new THREE.Mesh(floorGeometry, floorMaterial);
-        floor.rotation.x = -Math.PI / 2;
-        floor.receiveShadow = true;
-        datacenter.add(floor);
+        const grid = new THREE.GridHelper(20, 20, 0x444444, 0x222222);
+        datacenter.add(grid);
 
         createServerRacks();
 
@@ -140,18 +91,15 @@ window.onload = () => {
         addContainers(3, service2);
         addContainers(1, service3);
         addContainers(2, service4);
-
-        console.log("🏢 Дата-центр створено!");
     }
 
     function createServerRacks() {
+        const rackGeometry = new THREE.BoxGeometry(1.5, 4, 1);
+        const rackMaterial = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.8, metalness: 0.2 });
         const positions = [ [-4, 0, -4], [4, 0, -4], [-4, 0, 4], [4, 0, 4] ];
         positions.forEach(pos => {
-            const rackGeometry = new THREE.BoxGeometry(1.5, 4, 1);
-            const rackMaterial = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.8, metalness: 0.2 });
-            const rack = new THREE.Mesh(rackGeometry, rackMaterial);
+            const rack = new THREE.Mesh(rackGeometry, rackMaterial.clone());
             rack.position.set(pos[0], 2, pos[1]);
-            rack.castShadow = true;
             datacenter.add(rack);
         });
     }
@@ -163,7 +111,6 @@ window.onload = () => {
         });
         const serviceMesh = new THREE.Mesh(serviceGeometry, serviceMaterial);
         serviceMesh.position.set(x, y, z);
-        serviceMesh.castShadow = true;
         
         const labelDiv = document.createElement('div');
         labelDiv.className = 'label';
@@ -185,34 +132,50 @@ window.onload = () => {
                 color: microservice.material.color, emissive: microservice.material.color, emissiveIntensity: 0.5
             });
             const container = new THREE.Mesh(containerGeometry, containerMaterial);
+
             const containerCount = microservice.userData.containers.length;
             const radius = 0.8;
             const angle = (containerCount * 1.2) + Math.random();
+            
             container.position.set(
                 microservice.position.x + Math.cos(angle) * radius,
                 microservice.position.y,
                 microservice.position.z + Math.sin(angle) * radius
             );
-            container.castShadow = true;
-            container.userData = { service: microservice, orbitAngle: angle, orbitRadius: radius };
+            
+            container.userData = { service: microservice, orbitAngle: angle, orbitRadius: radius, timeOffset: Math.random() * 100 };
+            
             microservice.userData.containers.push(container);
             containers.push(container);
             datacenter.add(container);
         }
         containerCountEl.textContent = containers.length;
     }
+    
+    // --- Логіка анімації, симуляції та ML ---
+    function createDataPacket() {
+        if (microservices.length < 2) return;
+        
+        let startService, endService;
+        do {
+            startService = microservices[Math.floor(Math.random() * microservices.length)];
+            endService = microservices[Math.floor(Math.random() * microservices.length)];
+        } while (startService === endService);
 
-    // --- Обробники подій ---
-    function setupEventHandlers() {
-        simButton.onclick = () => {
-            simulationActive = !simulationActive;
-            simButton.textContent = simulationActive ? "⏸️ Зупинити симуляцію" : "▶️ Симулювати навантаження";
+        const packetGeometry = new THREE.SphereGeometry(0.05, 8, 8);
+        const packetMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true });
+        const packet = new THREE.Mesh(packetGeometry, packetMaterial);
+
+        packet.userData = {
+            start: startService.position.clone().add(new THREE.Vector3(0, 0.2, 0)),
+            end: endService.position.clone().add(new THREE.Vector3(0, 0.2, 0)),
+            progress: 0
         };
-        // Тепер цей виклик буде працювати
-        window.addEventListener('resize', onWindowResize);
+        
+        dataPackets.push(packet);
+        scene.add(packet);
     }
 
-    // --- ML, симуляція, анімація та вбудовані OrbitControls ---
     async function createAndTrainModel() {
         statusText.textContent = "🤖 Тренування ML...";
         let model = tf.sequential();
@@ -236,11 +199,13 @@ window.onload = () => {
     
     async function handleSimulation() {
         if (!simulationActive) return;
+        
         simulationTime += 0.05;
         const currentLoad = Math.sin(simulationTime) * 0.5 + 0.5;
         statusText.textContent = `Навантаження: ${currentLoad.toFixed(2)}`;
         loadHistory.push(currentLoad);
         if (loadHistory.length > 10) { loadHistory.shift(); }
+        
         if (loadHistory.length === 10 && mlModel) {
             const prediction = await predictLoad(loadHistory);
             predictionText.textContent = prediction.toFixed(2);
@@ -262,6 +227,52 @@ window.onload = () => {
         });
     }
 
+    function setupEventHandlers() {
+        simButton.onclick = () => {
+            simulationActive = !simulationActive;
+            simButton.textContent = simulationActive ? "⏸️ Зупинити симуляцію" : "▶️ Симулювати навантаження";
+        };
+        window.addEventListener('resize', onWindowResize);
+    }
+
+    function animate() {
+        requestAnimationFrame(animate);
+        const delta = 0.02;
+        simulationTime += delta;
+        controls.update();
+
+        // Анімація контейнерів (пульсація)
+        containers.forEach(container => {
+            const scale = 1 + Math.sin(simulationTime * 5 + container.userData.timeOffset) * 0.2;
+            container.scale.set(scale, scale, scale);
+        });
+        
+        // Створення та анімація пакетів даних
+        if (simulationActive && Math.random() < 0.1) {
+            createDataPacket();
+        }
+
+        for (let i = dataPackets.length - 1; i >= 0; i--) {
+            const packet = dataPackets[i];
+            packet.userData.progress += 0.02;
+            packet.position.lerpVectors(packet.userData.start, packet.userData.end, packet.userData.progress);
+            packet.material.opacity = 1.0 - packet.userData.progress;
+            
+            if (packet.userData.progress >= 1) {
+                scene.remove(packet);
+                dataPackets.splice(i, 1);
+            }
+        }
+
+        if (simulationActive) {
+            handleSimulation();
+        }
+
+        renderer.render(scene, camera);
+        labelRenderer.render(scene, camera);
+    }
+    
+    // Вбудовані OrbitControls
     function initializeOrbitControls() {
         THREE.OrbitControls = function(object, domElement) {
             this.object = object;
