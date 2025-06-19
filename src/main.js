@@ -250,12 +250,48 @@ window.onload = () => {
     }
     
     async function handleSimulation() {
+        simulationTime += 0.01; // Повільний базовий час
+        const now = performance.now();
         let currentLoad;
+
         if (isAutoMode) {
-            simulationTime += 0.003;
-            currentLoad = (Math.sin(simulationTime) + Math.sin(simulationTime * 2.7)) / 2 * 0.5 + 0.5;
+            // Керування станами симуляції
+            if (now > stateEndTime) {
+                const randomState = Math.random();
+                if (randomState < 0.7) { // 70% часу - нормальний режим
+                    simulationState = 'normal';
+                    stateEndTime = now + (Math.random() * 10000 + 5000); // 5-15 секунд
+                } else if (randomState < 0.85) { // 15% часу - сплеск
+                    simulationState = 'spike';
+                    stateEndTime = now + (Math.random() * 2000 + 1000); // 1-3 секунди
+                } else { // 15% часу - стабільність
+                    simulationState = 'stable';
+                    stableLoadValue = Math.random() * 0.6 + 0.2; // Стабільне навантаження від 20% до 80%
+                    stateEndTime = now + (Math.random() * 8000 + 4000); // 4-12 секунд
+                }
+            }
+
+            // Розрахунок навантаження на основі стану
+            const baseLoad = (Math.sin(simulationTime) + 1) / 2; // Плавна синусоїда 0..1
+            const noise = (Math.random() - 0.5) * 0.05; // Невеликий шум
+
+            switch (simulationState) {
+                case 'spike':
+                    currentLoad = Math.min(1.0, baseLoad + 0.5 + noise); // Різкий сплеск
+                    break;
+                case 'stable':
+                    currentLoad = stableLoadValue + noise; // Тримаємо стабільне значення
+                    break;
+                default: // 'normal'
+                    currentLoad = baseLoad + noise;
+                    break;
+            }
+            
+            currentLoad = Math.max(0, Math.min(1, currentLoad)); // Обмежуємо значення в [0, 1]
             statusText.textContent = `Навантаження: ${currentLoad.toFixed(2)}`;
+
         } else {
+            // Ручний режим
             currentLoad = parseFloat(loadSlider.value) / 100;
         }
         
@@ -322,7 +358,7 @@ window.onload = () => {
 
         for (let i = dataPackets.length - 1; i >= 0; i--) {
             const packet = dataPackets[i];
-            const delta = clock.getDelta();
+            const delta = Math.min(clock.getDelta(), 0.1);
             packet.userData.progress += delta * 1.5;
             packet.position.lerpVectors(packet.userData.start, packet.userData.end, packet.userData.progress);
             if (packet.userData.progress >= 1) {
