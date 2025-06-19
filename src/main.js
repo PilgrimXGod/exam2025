@@ -95,7 +95,7 @@ function createScene() {
     
     // Завантажуємо модель серверної стійки
     loader.load(
-        './assets/models/server_rack.gltf', // Переконайся, що цей шлях правильний
+        'https://pilgrimxgod.github.io/exam2025/assets/models/server_rack.gltf', // Переконайся, що цей шлях правильний
         (gltf) => {
             console.log("Модель стійки завантажена.");
             const rackModel = gltf.scene;
