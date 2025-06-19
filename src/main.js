@@ -1,4 +1,4 @@
-// Файл: src/main.js (Повна версія для роботи з твоїми glTF моделями)
+// Файл: src/main.js (Версія з правильними шляхами до scene.gltf)
 
 window.onload = () => {
     'use strict';
@@ -31,7 +31,7 @@ window.onload = () => {
         scene.background = new THREE.Color(0x333333);
         
         camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.set(0, 2, 8); // Відсунули камеру для кращого огляду
+        camera.position.set(0, 2, 8);
 
         scene.add(new THREE.AmbientLight(0xffffff, 0.7));
         const dirLight = new THREE.DirectionalLight(0xffffff, 1.0);
@@ -81,33 +81,30 @@ window.onload = () => {
     // --- Логіка завантаження твоїх моделей ---
     function placeScene() {
         const loader = new THREE.GLTFLoader();
+        // ВАЖЛИВО: Оновлений шлях до моделі
         loader.load(
-            './assets/models/server_rack.gltf',
+            './assets/models/server-rack/scene.gltf',
             (gltf) => {
-                console.log("Модель стійки завантажена. Обробляємо...");
+                console.log("Модель стійки завантажена.");
                 serverRackModel = gltf.scene;
                 
-                // Проходимо по кожному елементу моделі
                 serverRackModel.traverse(child => {
                     if (child.isMesh) {
-                        // Ігноруємо прозорість, щоб всі частини були видимі
                         child.material.transparent = false;
                         child.material.opacity = 1.0;
                     }
                 });
                 
-                // Автоматичне центрування та масштабування
                 const box = new THREE.Box3().setFromObject(serverRackModel);
                 const size = box.getSize(new THREE.Vector3());
-                console.log("Реальний розмір моделі стійки:", size);
+                console.log("Розмір моделі стійки:", size);
 
-                if (size.length() > 0.001) { // Перевірка, що розмір не нульовий
+                if (size.length() > 0.001) {
                     const maxDim = Math.max(size.x, size.y, size.z);
-                    const scale = 3.0 / maxDim; // Робимо так, щоб найбільша сторона була 3 метри
+                    const scale = 3.0 / maxDim;
                     serverRackModel.scale.set(scale, scale, scale);
                 }
                 
-                // Перераховуємо розміри після масштабування і ставимо на підлогу
                 const newBox = new THREE.Box3().setFromObject(serverRackModel);
                 const center = newBox.getCenter(new THREE.Vector3());
                 serverRackModel.position.sub(center); 
@@ -127,8 +124,9 @@ window.onload = () => {
     function addContainers(count) {
         if (!serverRackModel) return;
         const loader = new THREE.GLTFLoader();
+        // ВАЖЛИВО: Оновлений шлях до моделі
         loader.load(
-            './assets/models/docker_whale.gltf',
+            './assets/models/docker-whale/scene.gltf',
             (gltf) => {
                 console.log("Модель кита завантажена.");
                 for (let i = 0; i < count; i++) {
@@ -138,12 +136,11 @@ window.onload = () => {
                     
                     container.position.set(Math.cos(angle) * radius, 1, Math.sin(angle) * radius);
                     
-                    // Автоматичне масштабування кита
                     const box = new THREE.Box3().setFromObject(container);
                     const size = box.getSize(new THREE.Vector3());
                     if (size.length() > 0.001) {
                         const maxDim = Math.max(size.x, size.y, size.z);
-                        const scale = 0.5 / maxDim; // Робимо його розміром 0.5 метра
+                        const scale = 0.5 / maxDim;
                         container.scale.set(scale, scale, scale);
                     }
                     
