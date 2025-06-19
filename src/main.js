@@ -1,6 +1,6 @@
 // Файл: src/main.js (Версія з правильними модульними імпортами з CDN)
 
-// ВАЖЛИВО: Імпортуємо все, вказуючи повні URL-шляхи до .js файлів
+// Імпортуємо все, вказуючи повні URL-шляхи
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.module.js';
 import { GLTFLoader } from 'https://cdn.jsdelivr.net/npm/three@0.149.0/examples/jsm/loaders/GLTFLoader.js';
 import { OrbitControls } from 'https://cdn.jsdelivr.net/npm/three@0.149.0/examples/jsm/controls/OrbitControls.js';
@@ -85,7 +85,6 @@ async function main() {
     renderer.setSize(window.innerWidth, window.innerHeight);
     document.body.appendChild(renderer.domElement);
     
-    // Тепер ми використовуємо імпортовані класи
     controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.target.set(0, 0.5, 0);
@@ -112,7 +111,8 @@ function onWindowResize() {
 
 function placeScene() {
     statusText.textContent = "Завантаження 3D-моделей...";
-    const loader = new GLTFLoader(); // Використовуємо імпортований клас
+    const loader = new GLTFLoader();
+    // ВАЖЛИВО: Правильний шлях до моделей відносно HTML файлу
     loader.load('./assets/models/server_rack.glb', (gltf) => {
         serverRackModel = gltf.scene;
         serverRackModel.position.set(0, 0, 0);
@@ -126,7 +126,7 @@ function placeScene() {
 
 function addContainers(count) {
     if (!serverRackModel) return;
-    const loader = new GLTFLoader(); // Використовуємо імпортований клас
+    const loader = new GLTFLoader();
     loader.load('./assets/models/docker_whale.glb', (gltf) => {
         for (let i = 0; i < count; i++) {
             const container = gltf.scene.clone();
@@ -170,5 +170,4 @@ function render() {
     renderer.render(scene, camera);
 }
 
-// Запускаємо наш основний код
 main();
