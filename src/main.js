@@ -1,4 +1,4 @@
-// Файл: src/main.js (Версія з фігурами-заглушками замість моделей)
+// Файл: src/main.js (Фінальна версія з повною візуалізацією)
 
 window.onload = () => {
     'use strict';
@@ -12,8 +12,7 @@ window.onload = () => {
 
     // --- Глобальні змінні ---
     let scene, camera, renderer, controls;
-    let serverRackModel = null;
-    const containers = [];
+    let serverRack, microservices = [], containers = []; // Оновили змінні
     let mlModel = null;
     let simulationActive = false;
     let simulationTime = 0;
@@ -29,12 +28,11 @@ window.onload = () => {
     async function main() {
         scene = new THREE.Scene();
         scene.background = new THREE.Color(0x333333);
-        scene.fog = new THREE.Fog(0x333333, 10, 40);
-
+        
         camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.set(0, 2, 6);
+        camera.position.set(0, 2.5, 7); // Відсунули камеру, щоб краще бачити
 
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
         scene.add(ambientLight);
         const dirLight = new THREE.DirectionalLight(0xffffff, 1.0);
         dirLight.position.set(5, 10, 7);
@@ -45,17 +43,14 @@ window.onload = () => {
         document.body.appendChild(renderer.domElement);
 
         controls = new THREE.OrbitControls(camera, renderer.domElement);
-        controls.target.set(0, 1, 0);
+        controls.target.set(0, 1.5, 0); // Націлюємо камеру на центр стійки
         controls.enableDamping = true;
-
-        const grid = new THREE.GridHelper(20, 20, 0x555555, 0x555555);
-        scene.add(grid);
 
         statusText.textContent = "Тренування ML-моделі...";
         await createAndTrainModel();
         
         statusText.textContent = "Створення сцени...";
-        placeScene(); // Ця функція тепер миттєва
+        createScene();
 
         simButton.onclick = () => {
             simulationActive = !simulationActive;
@@ -77,47 +72,95 @@ window.onload = () => {
         requestAnimationFrame(animate);
         controls.update();
         handleSimulation();
+        // Анімація контейнерів для динамічності
+        containers.forEach(container => {
+            container.rotation.y += 0.01;
+        });
         renderer.render(scene, camera);
     }
 
-    // --- Логіка створення сцени з заглушками ---
-    function placeScene() {
-        console.log("Створюємо серверну стійку-заглушку.");
+    // --- Нова логіка створення сцени ---
+    function createScene() {
+        console.log("Створюємо дата-центр та мікросервіси.");
         
-        // Створюємо куб, який імітує серверну стійку
-        const rackGeometry = new THREE.BoxGeometry(1, 2, 0.8);
-        const rackMaterial = new THREE.MeshStandardMaterial({ color: 0x555555 });
-        serverRackModel = new THREE.Mesh(rackGeometry, rackMaterial);
+        // 1. Дата-центр (серверна стійка)
+        const rackGeometry = new THREE.BoxGeometry(1.5, 3, 1.2);
+        const rackMaterial = new THREE.MeshStandardMaterial({
+            color: 0x555555,
+            transparent: true,
+            opacity: 0.2 // Робимо стійку напівпрозорою, щоб бачити нутрощі
+        });
+        serverRack = new THREE.Mesh(rackGeometry, rackMaterial);
+        serverRack.position.set(0, 1.5, 0);
+        scene.add(serverRack);
+
+        // Додаємо контур до стійки
+        const edges = new THREE.EdgesGeometry(rackGeometry);
+        const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0xffffff, linewidth: 2 }));
+        serverRack.add(line);
+
+        // 2. Створюємо мікросервіси
+        const service1 = createMicroservice('Аутентифікація', 0x00ff00, -0.3, 2.0, 0);
+        const service2 = createMicroservice('Профілі', 0xffff00, 0.3, 1.5, 0);
+        const service3 = createMicroservice('Платежі', 0xff0000, -0.3, 1.0, 0);
         
-        serverRackModel.position.set(0, 1, 0); // Піднімаємо, щоб стояв на сітці
-        scene.add(serverRackModel);
-        
-        addContainers(3); // Додаємо початкові контейнери
+        microservices.push(service1, service2, service3);
+        microservices.forEach(ms => serverRack.add(ms)); // Додаємо сервіси всередину стійки
+
+        // 3. Додаємо початкові контейнери
+        addContainers(2, service1); // 2 контейнери для аутентифікації
+        addContainers(3, service2); // 3 для профілів
+        addContainers(1, service3); // 1 для платежів
+
+        statusText.textContent = "Готово до симуляції.";
     }
 
-    function addContainers(count) {
-        if (!serverRackModel) return;
-        console.log(`Додаємо ${count} контейнерів-заглушок.`);
+    function createMicroservice(name, color, x, y, z) {
+        const serviceGeometry = new THREE.BoxGeometry(0.5, 0.3, 0.8);
+        const serviceMaterial = new THREE.MeshStandardMaterial({
+            color: color,
+            roughness: 0.5,
+            metalness: 0.2,
+            transparent: true,
+            opacity: 0.8
+        });
+        const serviceMesh = new THREE.Mesh(serviceGeometry, serviceMaterial);
+        serviceMesh.position.set(x, y - 1.5, z); // Позиція відносно центру стійки
+        
+        // Зберігаємо дані в об'єкті для подальшого використання
+        serviceMesh.userData = { name: name, containers: [] };
+        
+        return serviceMesh;
+    }
+
+    function addContainers(count, microservice) {
+        if (!microservice) { // Якщо сервіс не вказано, вибираємо випадковий
+            microservice = microservices[Math.floor(Math.random() * microservices.length)];
+        }
+        console.log(`Додаємо ${count} контейнер(ів) до сервісу "${microservice.userData.name}"`);
         
         for (let i = 0; i < count; i++) {
-            // Створюємо сферу, яка імітує контейнер
-            const containerGeometry = new THREE.SphereGeometry(0.2, 16, 16);
+            const containerGeometry = new THREE.SphereGeometry(0.1, 16, 16);
             const containerMaterial = new THREE.MeshStandardMaterial({
-                color: 0x0db7ed,
-                metalness: 0.2,
-                roughness: 0.5
+                color: microservice.material.color, // Контейнер має колір свого сервісу
+                emissive: microservice.material.color, // і трохи світиться
+                emissiveIntensity: 0.4
             });
             const container = new THREE.Mesh(containerGeometry, containerMaterial);
 
-            const angle = (containers.length / 10) * Math.PI * 2;
-            const radius = 1.5;
+            // Розміщуємо контейнер біля його мікросервісу
+            const r = 0.5; // радіус орбіти
+            const angle = (microservice.userData.containers.length / 5) * Math.PI * 2;
+            container.position.set(
+                microservice.position.x + Math.cos(angle) * r,
+                microservice.position.y + Math.sin(angle) * r,
+                microservice.position.z
+            );
             
-            container.position.set(Math.cos(angle) * radius, 1, Math.sin(angle) * radius);
-
-            scene.add(container);
-            containers.push(container);
+            microservice.userData.containers.push(container);
+            containers.push(container); // Загальний список для анімації
+            serverRack.add(container); // Додаємо на сцену (всередину стійки)
         }
-        statusText.textContent = "Готово до симуляції.";
     }
 
     // --- Логіка ML та симуляції ---
@@ -152,9 +195,11 @@ window.onload = () => {
         if (loadHistory.length === 10) {
             const prediction = await predictLoad(loadHistory);
             predictionText.textContent = prediction.toFixed(2);
-            if (prediction > LOAD_THRESHOLD && containers.length < 30) {
-                statusText.innerHTML = `Прогноз: ${prediction.toFixed(2)}<br><b>Масштабування!</b>`;
-                addContainers(1); // Додаємо нові сфери-контейнери
+            if (prediction > LOAD_THRESHOLD) {
+                // Вибираємо випадковий сервіс для масштабування
+                const targetService = microservices[Math.floor(Math.random() * microservices.length)];
+                statusText.innerHTML = `Прогноз: ${prediction.toFixed(2)}<br><b>Масштабування сервісу ${targetService.userData.name}!</b>`;
+                addContainers(1, targetService); // Додаємо новий контейнер до цільового сервісу
                 simulationTime += Math.PI;
             }
         }
