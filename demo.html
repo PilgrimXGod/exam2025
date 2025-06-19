@@ -1,27 +1,25 @@
 <!DOCTYPE html>
-<html>
+<html lang="uk">
 <head>
-    <title>Симуляція AR: Архітектура Систем</title>
+    <title>Симуляція: Архітектура розподілених систем</title>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     
-    <!-- ПІДКЛЮЧАЄМО БІБЛІОТЕКИ: ОСНОВНІ З CDN, ДОДАТКОВІ - ЛОКАЛЬНО -->
+    <!-- Підключення бібліотек -->
     <script src="https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.11.0/dist/tf.min.js"></script>
     
-    <!-- Підключаємо наші локальні копії -->
+    <!-- Підключаємо наші локальні копії бібліотек -->
     <script src="./libs/three/GLTFLoader.js"></script>
     <script src="./libs/three/OrbitControls.js"></script>
     
     <style>
-        body { margin: 0; overflow: hidden; background-color: #f0f0f0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+        body { margin: 0; overflow: hidden; background-color: #333; color: white; font-family: sans-serif; }
         canvas { display: block; }
-        #ui-container { position: absolute; top: 20px; right: 20px; width: 300px; background: rgba(255, 255, 255, 0.95); padding: 20px; border-radius: 12px; box-shadow: 0 4px 25px rgba(0, 0, 0, 0.1); color: #333; box-sizing: border-box; border: 1px solid #e0e0e0; }
-        #ui-container button { padding: 12px 15px; width: 100%; border-radius: 8px; border: none; background-color: #007bff; color: white; font-weight: bold; margin-bottom: 15px; cursor: pointer; transition: background-color 0.2s, transform 0.1s; }
-        #ui-container button:hover { background-color: #0056b3; }
-        #ui-container button:active { transform: scale(0.98); }
-        #ui-container p { margin: 8px 0; font-size: 14px; line-height: 1.4; }
-        #ui-container p span { font-weight: bold; color: #0056b3; }
+        #ui-container { position: absolute; top: 10px; left: 10px; width: 280px; background: rgba(0, 0, 0, 0.6); padding: 15px; border-radius: 10px; }
+        button { width: 100%; padding: 10px; background-color: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; margin-bottom: 10px; }
+        button:hover { background-color: #0056b3; }
+        p { margin: 5px 0; }
     </style>
 </head>
 <body>
@@ -31,7 +29,7 @@
         <p>Прогноз: <span id="prediction-text">-</span></p>
     </div>
 
-    <!-- ВАЖЛИВО: main.js підключається в кінці і без type="module" -->
+    <!-- Наш головний скрипт -->
     <script src="./src/main.js"></script>
 </body>
 </html>
