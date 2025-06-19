@@ -1,4 +1,4 @@
-// Файл: src/main.js (Повна фінальна версія з деоркестрацією та покращеною логікою)
+// Файл: src/main.js (Фінальна версія з плавним регулюванням контейнерів)
 
 window.onload = () => {
     'use strict';
@@ -10,11 +10,14 @@ window.onload = () => {
     console.log("✅ Всі бібліотеки успішно завантажені.");
 
     // --- Глобальні змінні ---
-    let scene, camera, renderer, controls, labelRenderer;
+    let scene, camera, renderer, controls, labelRenderer, clock;
     let datacenter, microservices = [], containers = [];
     const dataPackets = [];
     let mlModel = null, simulationActive = false, simulationTime = 0;
-    const loadHistory = [], LOAD_THRESHOLD = 0.75, DEPROVISION_THRESHOLD = 0.3; // Поріг для видалення контейнерів
+    const loadHistory = [];
+    
+    const MIN_CONTAINERS = 4;
+    const MAX_CONTAINERS = 50;
 
     // --- Елементи UI ---
     const simButton = document.getElementById('simulate-load-btn');
@@ -22,6 +25,10 @@ window.onload = () => {
     const predictionText = document.getElementById('prediction-text');
     const serviceCountEl = document.getElementById('service-count');
     const containerCountEl = document.getElementById('container-count');
+
+    // --- Таймер для регулятора ---
+    let lastAdjustmentTime = 0;
+    const ADJUSTMENT_INTERVAL = 1000; // Регулюємо раз на секунду
 
     // --- Основна функція ---
     async function main() {
@@ -40,11 +47,12 @@ window.onload = () => {
 
     // --- Ініціалізація сцени ---
     function initializeScene() {
+        clock = new THREE.Clock();
         scene = new THREE.Scene();
         scene.background = new THREE.Color(0x1a1a1a);
         
         camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.set(0, 4, 9); // Змінили позицію камери для кращого огляду
+        camera.position.set(8, 6, 8);
 
         scene.add(new THREE.AmbientLight(0x404040, 1.5));
         const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
@@ -67,51 +75,6 @@ window.onload = () => {
         controls.target.set(0, 1.5, 0);
         controls.enableDamping = true;
     }
-    
-    // --- Допоміжні функції ---
-    function onWindowResize() {
-        camera.aspect = window.innerWidth / window.innerHeight;
-        camera.updateProjectionMatrix();
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        labelRenderer.setSize(window.innerWidth, window.innerHeight);
-    }
-
-    function animate() {
-        requestAnimationFrame(animate);
-        controls.update();
-
-        // Анімації, які працюють завжди
-        const time = performance.now() * 0.001;
-
-        containers.forEach(container => {
-            const scale = 1 + Math.sin(time * 5 + container.userData.timeOffset) * 0.2;
-            container.scale.set(scale, scale, scale);
-        });
-        
-        if (simulationActive && Math.random() < 0.1 && dataPackets.length < 20) {
-            createDataPacket();
-        }
-
-        for (let i = dataPackets.length - 1; i >= 0; i--) {
-            const packet = dataPackets[i];
-            packet.userData.progress += 0.02;
-            packet.position.lerpVectors(packet.userData.start, packet.userData.end, packet.userData.progress);
-            packet.material.opacity = 1.0 - packet.userData.progress;
-            
-            if (packet.userData.progress >= 1) {
-                scene.remove(packet);
-                dataPackets.splice(i, 1);
-            }
-        }
-        
-        // Логіка симуляції викликається тільки, якщо вона активна
-        if (simulationActive) {
-            handleSimulation();
-        }
-
-        renderer.render(scene, camera);
-        labelRenderer.render(scene, camera);
-    }
 
     // --- Створення сцени ---
     function createDatacenter() {
@@ -123,7 +86,6 @@ window.onload = () => {
 
         createServerRacks();
 
-        // ВИПРАВЛЕНО: Розташування мікросервісів
         const service1 = createMicroservice('Аутентифікація', 0x00ff00, -3, 2, -1);
         const service2 = createMicroservice('Профілі', 0xffff00, -3, 2, 1);
         const service3 = createMicroservice('Платежі', 0xff0000, 3, 2, -1);
@@ -133,11 +95,10 @@ window.onload = () => {
         microservices.forEach(ms => datacenter.add(ms));
         serviceCountEl.textContent = microservices.length;
         
-        // По одному контейнеру на сервіс для старту
-        addContainers(1, service1);
-        addContainers(1, service2);
-        addContainers(1, service3);
-        addContainers(1, service4);
+        addContainers(1, service1, true);
+        addContainers(1, service2, true);
+        addContainers(1, service3, true);
+        addContainers(1, service4, true);
     }
 
     function createServerRacks() {
@@ -170,7 +131,7 @@ window.onload = () => {
         return serviceMesh;
     }
 
-    function addContainers(count, microservice) {
+    function addContainers(count, microservice, isInstant = false) {
         if (!microservice) return;
         
         for (let i = 0; i < count; i++) {
@@ -179,18 +140,22 @@ window.onload = () => {
                 color: microservice.material.color, emissive: microservice.material.color, emissiveIntensity: 0.6
             });
             const container = new THREE.Mesh(containerGeometry, containerMaterial);
-
             const containerCount = microservice.userData.containers.length;
             const radius = 1 + Math.floor(containerCount / 8) * 0.4;
-            const angle = (containerCount % 8) * (Math.PI / 4);
-            
+            const angle = (containerCount % 8) * (Math.PI / 4) + Math.random() * 0.2;
             container.position.set(
                 microservice.position.x + Math.cos(angle) * radius,
                 microservice.position.y,
                 microservice.position.z + Math.sin(angle) * radius
             );
-            
             container.userData = { service: microservice, timeOffset: Math.random() * 100 };
+            
+            if (isInstant) {
+                container.scale.set(1, 1, 1);
+            } else {
+                container.scale.set(0.01, 0.01, 0.01);
+                animateScale(container, new THREE.Vector3(1, 1, 1), 0.5);
+            }
             
             microservice.userData.containers.push(container);
             containers.push(container);
@@ -198,9 +163,9 @@ window.onload = () => {
         }
         containerCountEl.textContent = containers.length;
     }
-
+    
     function removeContainer(microservice) {
-        if (!microservice || microservice.userData.containers.length <= 1) return; 
+        if (!microservice || microservice.userData.containers.length === 0) return; 
 
         const containerToRemove = microservice.userData.containers.pop();
         const indexInGlobalArray = containers.indexOf(containerToRemove);
@@ -208,23 +173,29 @@ window.onload = () => {
             containers.splice(indexInGlobalArray, 1);
         }
 
-        // Плавне зникнення і видалення (можна використовувати бібліотеку, як GSAP, для краси)
-        const startScale = containerToRemove.scale.clone();
-        const endScale = new THREE.Vector3(0.01, 0.01, 0.01);
-        let progress = 0;
-        const duration = 0.5;
-        function shrink() {
-            progress += 1/60 / duration;
-            if (progress < 1) {
-                containerToRemove.scale.lerpVectors(startScale, endScale, progress);
-                requestAnimationFrame(shrink);
-            } else {
-                datacenter.remove(containerToRemove);
-            }
-        }
-        shrink();
+        animateScale(containerToRemove, new THREE.Vector3(0.01, 0.01, 0.01), 0.5, () => {
+             datacenter.remove(containerToRemove);
+        });
         
         containerCountEl.textContent = containers.length;
+    }
+    
+    function animateScale(object, targetScale, duration, onComplete) {
+        const startScale = object.scale.clone();
+        let progress = 0;
+        const start = performance.now();
+        
+        function scaleStep() {
+            const elapsed = (performance.now() - start) / 1000;
+            progress = Math.min(elapsed / duration, 1);
+            object.scale.lerpVectors(startScale, targetScale, progress);
+            if (progress < 1) {
+                requestAnimationFrame(scaleStep);
+            } else {
+                if (onComplete) onComplete();
+            }
+        }
+        scaleStep();
     }
 
     function createDataPacket() {
@@ -245,8 +216,7 @@ window.onload = () => {
         dataPackets.push(packet);
         scene.add(packet);
     }
-
-    // --- Обробники подій ---
+    
     function setupEventHandlers() {
         simButton.onclick = () => {
             simulationActive = !simulationActive;
@@ -255,7 +225,79 @@ window.onload = () => {
         window.addEventListener('resize', onWindowResize);
     }
 
-    // --- ML, симуляція та вбудовані OrbitControls ---
+    // --- ML, симуляція та анімація ---
+    function animate() {
+        requestAnimationFrame(animate);
+        const delta = clock.getDelta();
+        controls.update();
+
+        containers.forEach(container => {
+            const scale = 1 + Math.sin(performance.now() * 0.005 + container.userData.timeOffset) * 0.2;
+            container.scale.lerp(new THREE.Vector3(scale, scale, scale), 0.1);
+        });
+        
+        if (simulationActive && Math.random() < 0.1 && dataPackets.length < 20) {
+            createDataPacket();
+        }
+
+        for (let i = dataPackets.length - 1; i >= 0; i--) {
+            const packet = dataPackets[i];
+            packet.userData.progress += delta * 1.5;
+            packet.position.lerpVectors(packet.userData.start, packet.userData.end, packet.userData.progress);
+            packet.material.opacity = 1.0 - packet.userData.progress;
+            if (packet.userData.progress >= 1) {
+                scene.remove(packet);
+                dataPackets.splice(i, 1);
+            }
+        }
+        
+        if (simulationActive) {
+            handleSimulation();
+        }
+
+        renderer.render(scene, camera);
+        labelRenderer.render(scene, camera);
+    }
+    
+    async function handleSimulation() {
+        simulationTime += 0.003;
+        const currentLoad = (Math.sin(simulationTime) + Math.sin(simulationTime * 2.7)) / 2 * 0.5 + 0.5;
+        statusText.textContent = `Навантаження: ${currentLoad.toFixed(2)}`;
+        
+        loadHistory.push(currentLoad);
+        if (loadHistory.length > 10) { loadHistory.shift(); }
+        
+        if (loadHistory.length === 10 && mlModel) {
+            const prediction = await predictLoad(loadHistory);
+            predictionText.textContent = prediction.toFixed(2);
+            
+            const now = performance.now();
+            if (now - lastAdjustmentTime > ADJUSTMENT_INTERVAL) {
+                adjustContainers(prediction);
+                lastAdjustmentTime = now;
+            }
+        }
+    }
+    
+    function adjustContainers(predictedLoad) {
+        const targetCount = Math.round(MIN_CONTAINERS + (MAX_CONTAINERS - MIN_CONTAINERS) * predictedLoad);
+        const currentCount = containers.length;
+        
+        if (currentCount < targetCount) {
+            const targetService = microservices[Math.floor(Math.random() * microservices.length)];
+            statusText.innerHTML = `📈 Навантаження зростає...`;
+            addContainers(1, targetService);
+        } else if (currentCount > targetCount && currentCount > MIN_CONTAINERS) {
+            const targetServiceWithMostContainers = microservices.reduce((prev, curr) => 
+                prev.userData.containers.length > curr.userData.containers.length ? prev : curr
+            );
+            if (targetServiceWithMostContainers.userData.containers.length > 0) {
+                statusText.innerHTML = `📉 Навантаження спадає...`;
+                removeContainer(targetServiceWithMostContainers);
+            }
+        }
+    }
+
     async function createAndTrainModel() {
         statusText.textContent = "🤖 Тренування ML...";
         let model = tf.sequential();
@@ -277,28 +319,6 @@ window.onload = () => {
         mlModel = model;
     }
     
-    async function handleSimulation() {
-        simulationTime += 0.01; // Плавна зміна
-        const currentLoad = Math.sin(simulationTime) * 0.5 + 0.5;
-        statusText.textContent = `Навантаження: ${currentLoad.toFixed(2)}`;
-        loadHistory.push(currentLoad);
-        if (loadHistory.length > 10) { loadHistory.shift(); }
-        if (loadHistory.length === 10 && mlModel) {
-            const prediction = await predictLoad(loadHistory);
-            predictionText.textContent = prediction.toFixed(2);
-            if (prediction > LOAD_THRESHOLD && containers.length < 50) {
-                const targetService = microservices[Math.floor(Math.random() * microservices.length)];
-                addContainers(1, targetService);
-            }
-            if (prediction < DEPROVISION_THRESHOLD) {
-                const targetService = microservices.reduce((prev, curr) => 
-                    prev.userData.containers.length > curr.userData.containers.length ? prev : curr
-                );
-                removeContainer(targetService);
-            }
-        }
-    }
-    
     async function predictLoad(sequence) {
         if (!mlModel) return null;
         return tf.tidy(() => {
@@ -309,8 +329,7 @@ window.onload = () => {
     }
 
     function initializeOrbitControls() {
-        THREE.OrbitControls = function(object, domElement) {
-            this.object = object; this.domElement = domElement; this.enabled = true; this.target = new THREE.Vector3(); this.enableDamping = false; this.dampingFactor = 0.05; this.enableZoom = true; this.enableRotate = true; this.enablePan = true; var scope = this; var rotateSpeed = 1.0; var zoomSpeed = 1.0; var spherical = new THREE.Spherical(); var sphericalDelta = new THREE.Spherical(); var scale = 1; var panOffset = new THREE.Vector3(); var rotateStart = new THREE.Vector2(); var rotateEnd = new THREE.Vector2(); var rotateDelta = new THREE.Vector2(); var STATE = { NONE: -1, ROTATE: 0 }; var state = STATE.NONE; this.update = function() { var offset = new THREE.Vector3(); var quat = new THREE.Quaternion().setFromUnitVectors(object.up, new THREE.Vector3(0, 1, 0)); var quatInverse = quat.clone().invert(); var position = scope.object.position; offset.copy(position).sub(scope.target); offset.applyQuaternion(quat); spherical.setFromVector3(offset); if (scope.enableDamping) { spherical.theta += sphericalDelta.theta * scope.dampingFactor; spherical.phi += sphericalDelta.phi * scope.dampingFactor; } else { spherical.theta += sphericalDelta.theta; spherical.phi += sphericalDelta.phi; } spherical.makeSafe(); spherical.radius *= scale; if (scope.enableDamping) { scope.target.addScaledVector(panOffset, scope.dampingFactor); } else { scope.target.add(panOffset); } offset.setFromSpherical(spherical); offset.applyQuaternion(quatInverse); position.copy(scope.target).add(offset); scope.object.lookAt(scope.target); if (scope.enableDamping) { sphericalDelta.theta *= (1 - scope.dampingFactor); sphericalDelta.phi *= (1 - scope.dampingFactor); panOffset.multiplyScalar(1 - scope.dampingFactor); } else { sphericalDelta.set(0, 0, 0); panOffset.set(0, 0, 0); } scale = 1; return true; }; function onMouseDown(event) { if (!scope.enabled) return; event.preventDefault(); if (event.button === 0) { state = STATE.ROTATE; rotateStart.set(event.clientX, event.clientY); } document.addEventListener('mousemove', onMouseMove, false); document.addEventListener('mouseup', onMouseUp, false); } function onMouseMove(event) { if (!scope.enabled) return; event.preventDefault(); if (state === STATE.ROTATE) { rotateEnd.set(event.clientX, event.clientY); rotateDelta.subVectors(rotateEnd, rotateStart).multiplyScalar(rotateSpeed); sphericalDelta.theta -= 2 * Math.PI * rotateDelta.x / scope.domElement.clientWidth; sphericalDelta.phi -= 2 * Math.PI * rotateDelta.y / scope.domElement.clientHeight; rotateStart.copy(rotateEnd); } } function onMouseUp() { if (!scope.enabled) return; document.removeEventListener('mousemove', onMouseMove, false); document.removeEventListener('mouseup', onMouseUp, false); state = STATE.NONE; } function onMouseWheel(event) { if (!scope.enabled || !scope.enableZoom) return; event.preventDefault(); if (event.deltaY < 0) { scale /= Math.pow(0.95, zoomSpeed); } else if (event.deltaY > 0) { scale *= Math.pow(0.95, zoomSpeed); } } if (domElement) { domElement.addEventListener('mousedown', onMouseDown, false); domElement.addEventListener('wheel', onMouseWheel, false); domElement.addEventListener('contextmenu', function(event) { event.preventDefault(); }, false); } };
+        THREE.OrbitControls = function(object, domElement) { this.object = object; this.domElement = domElement; this.enabled = true; this.target = new THREE.Vector3(); this.enableDamping = false; this.dampingFactor = 0.05; this.enableZoom = true; this.enableRotate = true; this.enablePan = true; var scope = this; var rotateSpeed = 1.0; var zoomSpeed = 1.0; var spherical = new THREE.Spherical(); var sphericalDelta = new THREE.Spherical(); var scale = 1; var panOffset = new THREE.Vector3(); var rotateStart = new THREE.Vector2(); var rotateEnd = new THREE.Vector2(); var rotateDelta = new THREE.Vector2(); var STATE = { NONE: -1, ROTATE: 0 }; var state = STATE.NONE; this.update = function() { var offset = new THREE.Vector3(); var quat = new THREE.Quaternion().setFromUnitVectors(object.up, new THREE.Vector3(0, 1, 0)); var quatInverse = quat.clone().invert(); var position = scope.object.position; offset.copy(position).sub(scope.target); offset.applyQuaternion(quat); spherical.setFromVector3(offset); if (scope.enableDamping) { spherical.theta += sphericalDelta.theta * scope.dampingFactor; spherical.phi += sphericalDelta.phi * scope.dampingFactor; } else { spherical.theta += sphericalDelta.theta; spherical.phi += sphericalDelta.phi; } spherical.makeSafe(); spherical.radius *= scale; if (scope.enableDamping) { scope.target.addScaledVector(panOffset, scope.dampingFactor); } else { scope.target.add(panOffset); } offset.setFromSpherical(spherical); offset.applyQuaternion(quatInverse); position.copy(scope.target).add(offset); scope.object.lookAt(scope.target); if (scope.enableDamping) { sphericalDelta.theta *= (1 - scope.dampingFactor); sphericalDelta.phi *= (1 - scope.dampingFactor); panOffset.multiplyScalar(1 - scope.dampingFactor); } else { sphericalDelta.set(0, 0, 0); panOffset.set(0, 0, 0); } scale = 1; return true; }; function onMouseDown(event) { if (!scope.enabled) return; event.preventDefault(); if (event.button === 0) { state = STATE.ROTATE; rotateStart.set(event.clientX, event.clientY); } document.addEventListener('mousemove', onMouseMove, false); document.addEventListener('mouseup', onMouseUp, false); } function onMouseMove(event) { if (!scope.enabled) return; event.preventDefault(); if (state === STATE.ROTATE) { rotateEnd.set(event.clientX, event.clientY); rotateDelta.subVectors(rotateEnd, rotateStart).multiplyScalar(rotateSpeed); sphericalDelta.theta -= 2 * Math.PI * rotateDelta.x / scope.domElement.clientWidth; sphericalDelta.phi -= 2 * Math.PI * rotateDelta.y / scope.domElement.clientHeight; rotateStart.copy(rotateEnd); } } function onMouseUp() { if (!scope.enabled) return; document.removeEventListener('mousemove', onMouseMove, false); document.removeEventListener('mouseup', onMouseUp, false); state = STATE.NONE; } function onMouseWheel(event) { if (!scope.enabled || !scope.enableZoom) return; event.preventDefault(); if (event.deltaY < 0) { scale /= Math.pow(0.95, zoomSpeed); } else if (event.deltaY > 0) { scale *= Math.pow(0.95, zoomSpeed); } } if (domElement) { domElement.addEventListener('mousedown', onMouseDown, false); domElement.addEventListener('wheel', onMouseWheel, false); domElement.addEventListener('contextmenu', function(event) { event.preventDefault(); }, false); } };
     }
 
     // Запуск програми
