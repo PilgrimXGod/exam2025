@@ -1,25 +1,13 @@
-// Файл: src/main.js (Написано з нуля, найнадійніший варіант)
+// Файл: src/main.js (Версія з фігурами-заглушками замість моделей)
 
 window.onload = () => {
     'use strict';
 
     // --- Перевірка завантаження бібліотек ---
-    if (typeof THREE === 'undefined') {
-        alert("Помилка: бібліотека Three.js не завантажилася!");
-        return;
-    }
-    if (typeof THREE.GLTFLoader === 'undefined') {
-        alert("Помилка: бібліотека GLTFLoader не завантажилася!");
-        return;
-    }
-    if (typeof THREE.OrbitControls === 'undefined') {
-        alert("Помилка: бібліотека OrbitControls не завантажилася!");
-        return;
-    }
-    if (typeof tf === 'undefined') {
-        alert("Помилка: бібліотека TensorFlow.js не завантажилася!");
-        return;
-    }
+    if (typeof THREE === 'undefined') { alert("Помилка: бібліотека Three.js не завантажилася!"); return; }
+    if (typeof THREE.GLTFLoader === 'undefined') { alert("Помилка: бібліотека GLTFLoader не завантажилася!"); return; }
+    if (typeof THREE.OrbitControls === 'undefined') { alert("Помилка: бібліотека OrbitControls не завантажилася!"); return; }
+    if (typeof tf === 'undefined') { alert("Помилка: бібліотека TensorFlow.js не завантажилася!"); return; }
     console.log("Всі бібліотеки успішно завантажені.");
 
     // --- Глобальні змінні ---
@@ -39,51 +27,42 @@ window.onload = () => {
 
     // --- Основна функція ---
     async function main() {
-        // Сцена
         scene = new THREE.Scene();
         scene.background = new THREE.Color(0x333333);
         scene.fog = new THREE.Fog(0x333333, 10, 40);
 
-        // Камера
         camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
         camera.position.set(0, 2, 6);
 
-        // Світло
         const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
         scene.add(ambientLight);
         const dirLight = new THREE.DirectionalLight(0xffffff, 1.0);
         dirLight.position.set(5, 10, 7);
         scene.add(dirLight);
 
-        // Рендерер
         renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         document.body.appendChild(renderer.domElement);
 
-        // Керування
         controls = new THREE.OrbitControls(camera, renderer.domElement);
         controls.target.set(0, 1, 0);
         controls.enableDamping = true;
 
-        // Допоміжна сітка
         const grid = new THREE.GridHelper(20, 20, 0x555555, 0x555555);
         scene.add(grid);
 
-        // Запуск логіки
         statusText.textContent = "Тренування ML-моделі...";
         await createAndTrainModel();
         
-        statusText.textContent = "Завантаження 3D-моделей...";
-        await placeScene();
+        statusText.textContent = "Створення сцени...";
+        placeScene(); // Ця функція тепер миттєва
 
-        // Обробники подій
         simButton.onclick = () => {
             simulationActive = !simulationActive;
             simButton.textContent = simulationActive ? "Зупинити симуляцію" : "Симулювати навантаження";
         };
         window.addEventListener('resize', onWindowResize);
 
-        // Головний цикл
         animate();
     }
 
@@ -101,78 +80,49 @@ window.onload = () => {
         renderer.render(scene, camera);
     }
 
-    // --- Логіка завантаження моделей ---
+    // --- Логіка створення сцени з заглушками ---
     function placeScene() {
-        return new Promise((resolve, reject) => {
-            const loader = new THREE.GLTFLoader();
-            loader.load(
-                './assets/models/server_rack.gltf',
-                (gltf) => {
-                    console.log("Серверна стійка завантажена.");
-                    serverRackModel = gltf.scene;
-                    
-                    // Застосовуємо простий матеріал
-                    serverRackModel.traverse(child => {
-                        if (child.isMesh) {
-                            child.material = new THREE.MeshStandardMaterial({ color: 0x888888 });
-                        }
-                    });
-                    
-                    serverRackModel.position.set(0, 1, 0);
-                    scene.add(serverRackModel);
-                    
-                    addContainers(3).then(resolve);
-                },
-                undefined,
-                (error) => {
-                    console.error("Помилка завантаження серверної стійки:", error);
-                    statusText.textContent = "Помилка завантаження моделі!";
-                    reject(error);
-                }
-            );
-        });
+        console.log("Створюємо серверну стійку-заглушку.");
+        
+        // Створюємо куб, який імітує серверну стійку
+        const rackGeometry = new THREE.BoxGeometry(1, 2, 0.8);
+        const rackMaterial = new THREE.MeshStandardMaterial({ color: 0x555555 });
+        serverRackModel = new THREE.Mesh(rackGeometry, rackMaterial);
+        
+        serverRackModel.position.set(0, 1, 0); // Піднімаємо, щоб стояв на сітці
+        scene.add(serverRackModel);
+        
+        addContainers(3); // Додаємо початкові контейнери
     }
 
     function addContainers(count) {
-        return new Promise((resolve) => {
-            if (!serverRackModel) return resolve();
-            const loader = new THREE.GLTFLoader();
-            loader.load(
-                './assets/models/docker_whale.gltf',
-                (gltf) => {
-                    console.log("Модель кита завантажена.");
-                    for (let i = 0; i < count; i++) {
-                        const container = gltf.scene.clone();
-                        const angle = (containers.length / 10) * Math.PI * 2;
-                        const radius = 1.5;
-                        
-                        container.position.set(Math.cos(angle) * radius, 1, Math.sin(angle) * radius);
-                        container.scale.set(0.05, 0.05, 0.05);
+        if (!serverRackModel) return;
+        console.log(`Додаємо ${count} контейнерів-заглушок.`);
+        
+        for (let i = 0; i < count; i++) {
+            // Створюємо сферу, яка імітує контейнер
+            const containerGeometry = new THREE.SphereGeometry(0.2, 16, 16);
+            const containerMaterial = new THREE.MeshStandardMaterial({
+                color: 0x0db7ed,
+                metalness: 0.2,
+                roughness: 0.5
+            });
+            const container = new THREE.Mesh(containerGeometry, containerMaterial);
 
-                        // Застосовуємо простий матеріал
-                        container.traverse(child => {
-                            if (child.isMesh) {
-                                child.material = new THREE.MeshStandardMaterial({ color: 0x0db7ed });
-                            }
-                        });
+            const angle = (containers.length / 10) * Math.PI * 2;
+            const radius = 1.5;
+            
+            container.position.set(Math.cos(angle) * radius, 1, Math.sin(angle) * radius);
 
-                        scene.add(container);
-                        containers.push(container);
-                    }
-                    statusText.textContent = "Готово до симуляції.";
-                    resolve();
-                },
-                undefined,
-                (error) => {
-                    console.error("Помилка завантаження моделі кита:", error);
-                    resolve(); // Продовжуємо роботу, навіть якщо кити не завантажились
-                }
-            );
-        });
+            scene.add(container);
+            containers.push(container);
+        }
+        statusText.textContent = "Готово до симуляції.";
     }
 
     // --- Логіка ML та симуляції ---
     async function createAndTrainModel() {
+        // ... код ML без змін ...
         let model = tf.sequential();
         model.add(tf.layers.lstm({ units: 16, inputShape: [10, 1] }));
         model.add(tf.layers.dense({ units: 1 }));
@@ -204,7 +154,7 @@ window.onload = () => {
             predictionText.textContent = prediction.toFixed(2);
             if (prediction > LOAD_THRESHOLD && containers.length < 30) {
                 statusText.innerHTML = `Прогноз: ${prediction.toFixed(2)}<br><b>Масштабування!</b>`;
-                addContainers(1);
+                addContainers(1); // Додаємо нові сфери-контейнери
                 simulationTime += Math.PI;
             }
         }
