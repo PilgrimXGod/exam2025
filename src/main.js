@@ -21,6 +21,9 @@ window.onload = () => {
     
     let isAutoMode = true;
 
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+
     // --- Елементи UI ---
     const simButton = document.getElementById('simulate-load-btn');
     const statusText = document.getElementById('status-text');
@@ -30,6 +33,19 @@ window.onload = () => {
     const modeSwitch = document.getElementById('mode-switch');
     const sliderWrapper = document.getElementById('slider-wrapper');
     const loadSlider = document.getElementById('load-slider');
+    const infoBox = document.getElementById('info-box');
+    const infoTitle = document.getElementById('info-title');
+    const infoDescription = document.getElementById('info-description');
+    const infoCloseBtn = document.getElementById('info-close-btn');
+
+    // --- Інформація про об'єкти ---
+    const objectInfo = {
+        'Аутентифікація': 'Відповідає за вхід користувачів, реєстрацію та перевірку прав доступу. Використовує безпечні токени.',
+        'Профілі': 'Зберігає та керує даними користувачів: імена, аватари, налаштування. Взаємодіє з базою даних.',
+        'Платежі': 'Обробляє транзакції, інтегрується з платіжними шлюзами. Вимагає високого рівня безпеки.',
+        'API Gateway': 'Єдина точка входу для всіх зовнішніх запитів. Маршрутизує запити до відповідних мікросервісів.',
+        'Контейнер': 'Ізольоване середовище для запуску коду мікросервісу. Дозволяє легко масштабувати та розгортати додатки.'
+    };
 
     // --- Таймер для регулятора ---
     let lastAdjustmentTime = 0;
@@ -222,7 +238,51 @@ window.onload = () => {
                 if (loadHistory.length > 10) loadHistory.shift();
             }
         };
+        // Новий обробник кліку мишкою по сцені
+        renderer.domElement.addEventListener('mousedown', onDocumentMouseDown, false);
+        
+        // Обробник для закриття інфо-вікна
+        infoCloseBtn.onclick = () => {
+            infoBox.style.display = 'none';
+        };
+
         window.addEventListener('resize', onWindowResize);
+
+
+    }
+
+    // Нова функція для обробки кліків
+    function onDocumentMouseDown(event) {
+        event.preventDefault();
+        
+        // Переводимо координати кліку в систему координат Three.js (-1 до +1)
+        mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+        mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+        
+        // Оновлюємо Raycaster
+        raycaster.setFromCamera(mouse, camera);
+        
+        // Знаходимо об'єкти, з якими перетнувся промінь
+        const intersects = raycaster.intersectObjects(scene.children, true);
+        
+        if (intersects.length > 0) {
+            let clickedObject = intersects[0].object;
+            
+            // Якщо ми клікнули на контейнер, знаходимо його "батьківський" мікросервіс
+            if (containers.includes(clickedObject)) {
+                showInfo('Контейнер', objectInfo['Контейнер'] + ` Належить до сервісу "${clickedObject.userData.service.userData.name}".`);
+            } else if (microservices.includes(clickedObject)) {
+                // Якщо клікнули на мікросервіс
+                showInfo(clickedObject.userData.name, objectInfo[clickedObject.userData.name]);
+            }
+        }
+    }
+    
+    // Нова функція для відображення інформації
+    function showInfo(title, description) {
+        infoTitle.textContent = title;
+        infoDescription.textContent = description || "Інформація для цього об'єкта відсутня.";
+        infoBox.style.display = 'block';
     }
     
     async function createAndTrainModel() {
