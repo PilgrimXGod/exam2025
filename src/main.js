@@ -1,4 +1,4 @@
-// Файл: src/main.js (Версія з window.onload для 100% гарантії завантаження)
+// Файл: src/main.js (Версія з window.onload та діагностикою сцени)
 
 // Ми чекаємо, поки ВСЯ сторінка, включаючи всі скрипти з <head>,
 // повністю завантажиться. Тільки після цього наш код почне виконуватися.
@@ -67,33 +67,40 @@ window.onload = function() {
     const predictionText = document.getElementById('prediction-text');
 
     async function main() {
+        // --- Налаштування сцени ---
         scene = new THREE.Scene();
         scene.background = new THREE.Color(0xeeeeee);
         scene.fog = new THREE.Fog(0xeeeeee, 10, 50);
 
-        const gridHelper = new THREE.GridHelper( 10, 10 ); // Створюємо сітку 10x10
+        // === ДІАГНОСТИКА: Додаємо сітку для орієнтації ===
+        const gridHelper = new THREE.GridHelper( 10, 10, 0x888888, 0xcccccc );
         scene.add( gridHelper );
+        // ================================================
 
+        // --- Налаштування камери ---
         camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
         camera.position.set(0, 1, 4);
 
+        // --- Налаштування світла ---
         const light = new THREE.HemisphereLight(0xffffff, 0x444444, 1.5);
         scene.add(light);
         const dirLight = new THREE.DirectionalLight(0xffffff, 1);
         dirLight.position.set(5, 5, 5);
         scene.add(dirLight);
 
+        // --- Налаштування рендерера ---
         renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setPixelRatio(window.devicePixelRatio);
         renderer.setSize(window.innerWidth, window.innerHeight);
         document.body.appendChild(renderer.domElement);
         
-        // На цей момент об'єкт THREE та всі його компоненти 100% завантажені
+        // --- Налаштування керування мишкою ---
         controls = new THREE.OrbitControls(camera, renderer.domElement);
         controls.enableDamping = true;
         controls.target.set(0, 0.5, 0);
         controls.update();
 
+        // --- Запуск основної логіки ---
         statusText.textContent = "Тренування ML-моделі...";
         await createAndTrainModel();
         placeScene();
@@ -116,12 +123,11 @@ window.onload = function() {
     function placeScene() {
         statusText.textContent = "Завантаження 3D-моделей...";
         const loader = new THREE.GLTFLoader();
-
-        // Додаємо обробники прогресу та помилок
-        loader.load(
-            // URL моделі
-            './assets/models/server_rack.glb', 
         
+        loader.load(
+            // Шлях до моделі
+            './assets/models/server_rack.glb',
+            
             // onLoad: викликається після успішного завантаження
             (gltf) => {
                 console.log("Модель успішно завантажена!", gltf);
@@ -130,16 +136,22 @@ window.onload = function() {
                 serverRackModel.position.set(0, 0, 0);
                 serverRackModel.scale.set(0.15, 0.15, 0.15);
                 scene.add(serverRackModel);
+
+                // === ДІАГНОСТИКА: Додаємо жовту рамку навколо моделі ===
+                const boxHelper = new THREE.BoxHelper( serverRackModel, 0xffff00 );
+                scene.add( boxHelper );
+                // =======================================================
+
                 addContainers(3);
             },
-        
+            
             // onProgress: викликається під час завантаження
             (xhr) => {
                 const percentLoaded = (xhr.loaded / xhr.total * 100).toFixed(2);
                 console.log(`Завантаження моделі: ${percentLoaded}%`);
                 statusText.textContent = `Завантаження моделі: ${percentLoaded}%`;
             },
-        
+            
             // onError: викликається, якщо сталася помилка
             (error) => {
                 console.error("Критична помилка під час завантаження моделі:", error);
@@ -156,11 +168,14 @@ window.onload = function() {
                 const container = gltf.scene.clone();
                 const angle = (containers.length / 10) * Math.PI * 2 + Math.random() * 0.5;
                 const radius = 0.5 + Math.random() * 0.2;
+                
                 const containerGroup = new THREE.Group();
                 serverRackModel.add(containerGroup);
+                
                 container.position.set(Math.cos(angle) * radius, 1.0, Math.sin(angle) * radius);
                 container.scale.set(0.35, 0.35, 0.35);
                 container.rotation.y = Math.random() * Math.PI * 2;
+                
                 containerGroup.add(container);
                 containers.push(containerGroup);
             }
