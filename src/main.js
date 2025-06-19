@@ -1,7 +1,5 @@
-// Файл: src/main.js (Версія для завантаження .gltf, з window.onload та діагностикою)
+// Файл: src/main.js (Чистова версія для здачі проєкту)
 
-// Ми чекаємо, поки ВСЯ сторінка, включаючи всі скрипти з <head>,
-// повністю завантажиться. Тільки після цього наш код почне виконуватися.
 window.onload = function() {
     'use strict';
 
@@ -69,29 +67,25 @@ window.onload = function() {
     async function main() {
         // --- Налаштування сцени ---
         scene = new THREE.Scene();
-        scene.background = new THREE.Color(0xeeeeee);
-        scene.fog = new THREE.Fog(0xeeeeee, 10, 50);
-
-        // === ДІАГНОСТИКА: Додаємо сітку для орієнтації ===
-        const gridHelper = new THREE.GridHelper( 10, 10, 0x888888, 0xcccccc );
-        scene.add( gridHelper );
-        // ================================================
+        scene.background = new THREE.Color(0x2d3436); // Темний фон для кращого контрасту
+        scene.fog = new THREE.Fog(0x2d3436, 10, 30);
 
         // --- Налаштування камери ---
         camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.set(0, 1, 4);
+        camera.position.set(0, 1.5, 5); // Позиція трохи далі і вище
 
         // --- Налаштування світла ---
-        const light = new THREE.HemisphereLight(0xffffff, 0x444444, 1.5);
-        scene.add(light);
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5); // М'яке загальне світло
+        scene.add(ambientLight);
         const dirLight = new THREE.DirectionalLight(0xffffff, 1);
-        dirLight.position.set(5, 5, 5);
+        dirLight.position.set(5, 10, 7.5);
         scene.add(dirLight);
 
         // --- Налаштування рендерера ---
         renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setPixelRatio(window.devicePixelRatio);
         renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.outputEncoding = THREE.sRGBEncoding; // Правильна обробка кольорів
         document.body.appendChild(renderer.domElement);
         
         // --- Налаштування керування мишкою ---
@@ -124,64 +118,44 @@ window.onload = function() {
         statusText.textContent = "Завантаження 3D-моделей...";
         const loader = new THREE.GLTFLoader();
         
-        loader.load(
-            // Шлях до .gltf файлу
-            './assets/models/server_rack.gltf',
+        loader.load('./assets/models/server_rack.gltf', (gltf) => {
+            serverRackModel = gltf.scene;
             
-            // onLoad
-            (gltf) => {
-                console.log("Модель server_rack.gltf успішно завантажена!", gltf);
-                statusText.textContent = "Модель завантажено, додаю на сцену...";
-                serverRackModel = gltf.scene;
-                
-                // Спробуємо автоматично центрувати модель і підібрати масштаб
-                const box = new THREE.Box3().setFromObject(serverRackModel);
-                const center = box.getCenter(new THREE.Vector3());
-                serverRackModel.position.sub(center); // центруємо модель
-                
-                scene.add(serverRackModel);
-
-                // === ДОДАЙ ЦЕЙ РЯДОК ===
-                serverRackModel.scale.set(0.5, 0.5, 0.5); // Встановимо початковий масштаб
-                // ======================
-
-                // === ДІАГНОСТИКА: Додаємо жовту рамку навколо моделі ===
-                const boxHelper = new THREE.BoxHelper( serverRackModel, 0xffff00 );
-                scene.add( boxHelper );
-                // =======================================================
-
-                addContainers(3);
-            },
+            // Центруємо модель
+            const box = new THREE.Box3().setFromObject(serverRackModel);
+            const center = box.getCenter(new THREE.Vector3());
+            serverRackModel.position.sub(center); 
             
-            // onProgress
-            (xhr) => {
-                const percentLoaded = (xhr.loaded / xhr.total * 100).toFixed(2);
-                console.log(`Завантаження моделі: ${percentLoaded}%`);
-                statusText.textContent = `Завантаження моделі: ${percentLoaded}%`;
-            },
-            
-            // onError
-            (error) => {
-                console.error("Критична помилка під час завантаження моделі:", error);
-                statusText.textContent = "Помилка завантаження моделі!";
-            }
-        );
+            // Встановлюємо фінальний масштаб
+            serverRackModel.scale.set(1.5, 1.5, 1.5); // Підбери цей масштаб за потреби
+
+            scene.add(serverRackModel);
+            addContainers(3);
+        },
+        (xhr) => {
+            const percentLoaded = (xhr.loaded / xhr.total * 100).toFixed(0);
+            statusText.textContent = `Завантаження моделі: ${percentLoaded}%`;
+        },
+        (error) => {
+            console.error("Помилка завантаження моделі стійки:", error);
+        });
     }
 
     function addContainers(count) {
         if (!serverRackModel) return;
         const loader = new THREE.GLTFLoader();
-        // Завантажуємо модель кита
         loader.load('./assets/models/docker_whale.gltf', (gltf) => {
             for (let i = 0; i < count; i++) {
                 const container = gltf.scene.clone();
                 const angle = (containers.length / 10) * Math.PI * 2 + Math.random() * 0.5;
-                const radius = 1.5 + Math.random() * 0.5; // Збільшимо радіус
+                const radius = 1.2 + Math.random() * 0.3;
                 
                 const containerGroup = new THREE.Group();
                 serverRackModel.add(containerGroup);
                 
                 container.position.set(Math.cos(angle) * radius, 0.5, Math.sin(angle) * radius);
+                container.scale.set(0.1, 0.1, 0.1); // Зробимо китів меншими
+                container.rotation.y = Math.random() * Math.PI * 2;
                 
                 containerGroup.add(container);
                 containers.push(containerGroup);
@@ -203,7 +177,7 @@ window.onload = function() {
         const prediction = await predictLoad(loadHistory);
         if (prediction !== null) {
             predictionText.textContent = prediction.toFixed(2);
-            if (prediction > LOAD_THRESHOLD && containers.length < 20) {
+            if (prediction > LOAD_THRESHOLD && containers.length < 30) {
                 statusText.innerHTML = `Прогноз: ${prediction.toFixed(2)}<br><b>Масштабування!</b>`;
                 addContainers(1);
                 simulationTime += Math.PI;
