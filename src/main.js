@@ -105,11 +105,14 @@ function createScene() {
                 if (child.isMesh) {
                     child.material.metalness = 0.1;
                     child.material.roughness = 0.8;
+                    console.log("👀 Mesh:", child.name, child.material);
                 }
             });
             
             // Центруємо та масштабуємо
             const box = new THREE.Box3().setFromObject(rackModel);
+            const size = box.getSize(new THREE.Vector3());
+            console.log("📏 Розмір моделі:", size);
             const center = box.getCenter(new THREE.Vector3());
             rackModel.position.sub(center);
             rackModel.scale.set(1.5, 1.5, 1.5);
