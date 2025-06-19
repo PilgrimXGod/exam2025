@@ -11,7 +11,7 @@ window.onload = () => {
 
     // --- Глобальні змінні ---
     let scene, camera, renderer, controls, labelRenderer;
-    let datacenter, microservices = [], containers = [];
+    let datacenter, microservices = [], containers = [], dataPackets = [];
     let mlModel = null, simulationActive = false, simulationTime = 0;
     const loadHistory = [], LOAD_THRESHOLD = 0.75;
 
