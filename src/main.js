@@ -80,40 +80,64 @@ window.onload = () => {
     }
 
     // --- Нова логіка створення сцени ---
-    function createScene() {
-        console.log("Створюємо дата-центр та мікросервіси.");
-        
-        // 1. Дата-центр (серверна стійка)
-        const rackGeometry = new THREE.BoxGeometry(1.5, 3, 1.2);
-        const rackMaterial = new THREE.MeshStandardMaterial({
-            color: 0x555555,
-            transparent: true,
-            opacity: 0.2 // Робимо стійку напівпрозорою, щоб бачити нутрощі
-        });
-        serverRack = new THREE.Mesh(rackGeometry, rackMaterial);
-        serverRack.position.set(0, 1.5, 0);
-        scene.add(serverRack);
+    // src/main.js
 
-        // Додаємо контур до стійки
-        const edges = new THREE.EdgesGeometry(rackGeometry);
-        const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0xffffff, linewidth: 2 }));
-        serverRack.add(line);
+function createScene() {
+    console.log("Створюємо дата-центр та мікросервіси.");
+    
+    // 1. Створюємо батьківський об'єкт для всієї нашої сцени
+    // Це допоможе нам легко керувати всім разом
+    serverRack = new THREE.Group();
+    serverRack.position.set(0, 1.5, 0);
+    scene.add(serverRack);
+    
+    const loader = new THREE.GLTFLoader();
+    
+    // Завантажуємо модель серверної стійки
+    loader.load(
+        './assets/models/server_rack.gltf', // Переконайся, що цей шлях правильний
+        (gltf) => {
+            console.log("Модель стійки завантажена.");
+            const rackModel = gltf.scene;
+            
+            // Проходимо по моделі і налаштовуємо матеріали
+            rackModel.traverse(child => {
+                if (child.isMesh) {
+                    child.material.metalness = 0.1;
+                    child.material.roughness = 0.8;
+                }
+            });
+            
+            // Центруємо та масштабуємо
+            const box = new THREE.Box3().setFromObject(rackModel);
+            const center = box.getCenter(new THREE.Vector3());
+            rackModel.position.sub(center);
+            rackModel.scale.set(1.5, 1.5, 1.5);
+            
+            serverRack.add(rackModel); // Додаємо модель всередину нашої групи
+            
+            // 2. Створюємо мікросервіси (як і раніше, куби)
+            const service1 = createMicroservice('Аутентифікація', 0x00ff00, 0, 0.5, 0.2);
+            const service2 = createMicroservice('Профілі', 0xffff00, 0, 0, 0.2);
+            const service3 = createMicroservice('Платежі', 0xff0000, 0, -0.5, 0.2);
+            
+            microservices.push(service1, service2, service3);
+            microservices.forEach(ms => serverRack.add(ms));
+            
+            // 3. Додаємо початкові контейнери (сфери)
+            addContainers(2, service1);
+            addContainers(3, service2);
+            addContainers(1, service3);
 
-        // 2. Створюємо мікросервіси
-        const service1 = createMicroservice('Аутентифікація', 0x00ff00, -0.3, 2.0, 0);
-        const service2 = createMicroservice('Профілі', 0xffff00, 0.3, 1.5, 0);
-        const service3 = createMicroservice('Платежі', 0xff0000, -0.3, 1.0, 0);
-        
-        microservices.push(service1, service2, service3);
-        microservices.forEach(ms => serverRack.add(ms)); // Додаємо сервіси всередину стійки
-
-        // 3. Додаємо початкові контейнери
-        addContainers(2, service1); // 2 контейнери для аутентифікації
-        addContainers(3, service2); // 3 для профілів
-        addContainers(1, service3); // 1 для платежів
-
-        statusText.textContent = "Готово до симуляції.";
-    }
+            statusText.textContent = "Готово до симуляції.";
+        },
+        undefined,
+        (error) => {
+            console.error("Помилка завантаження моделі стійки:", error);
+            statusText.textContent = "Помилка завантаження моделі стійки!";
+        }
+    );
+}
 
     function createMicroservice(name, color, x, y, z) {
         const serviceGeometry = new THREE.BoxGeometry(0.5, 0.3, 0.8);
