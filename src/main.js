@@ -56,20 +56,7 @@ window.onload = () => {
     let stateEndTime = 0;
     let stableLoadValue = 0.5;
 
-    // --- Основна функція ---
-    async function main() {
-        try {
-            initializeScene();
-            await createAndTrainModel();
-            createDatacenter();
-            setupEventHandlers();
-            animate();
-            statusText.textContent = "Готово";
-        } catch (error) {
-            console.error("❌ Помилка ініціалізації:", error);
-            statusText.textContent = "Помилка!";
-        }
-    }
+    
 
     function initializeScene() {
         clock = new THREE.Clock();
@@ -99,16 +86,27 @@ window.onload = () => {
     function createDatacenter() {
         datacenter = new THREE.Group();
         scene.add(datacenter);
+
         const grid = new THREE.GridHelper(20, 20, 0x444444, 0x222222);
         datacenter.add(grid);
+
         createServerRacks();
-        const service1 = createMicroservice('Аутентифікація', 0x00ff00, -3, 2, -1);
-        const service2 = createMicroservice('Профілі', 0xffff00, -3, 2, 1);
-        const service3 = createMicroservice('Платежі', 0xff0000, 3, 2, -1);
-        const service4 = createMicroservice('API Gateway', 0x00ffff, 3, 2, 1);
+
+        // --- ВИПРАВЛЕНО: Всі мікросервіси тепер належать до основного кластера ---
+        
+        // Розміщуємо мікросервіси навколо центральної точки (-5, 2, 0)
+        const mainClusterCenter = new THREE.Vector3(-5, 2, 0);
+
+        const service1 = createMicroservice('Аутентифікація', 0x00ff00, mainClusterCenter.x, mainClusterCenter.y, mainClusterCenter.z + 1.5);
+        const service2 = createMicroservice('Профілі', 0xffff00, mainClusterCenter.x, mainClusterCenter.y, mainClusterCenter.z - 1.5);
+        const service3 = createMicroservice('Платежі', 0xff0000, mainClusterCenter.x - 1.5, mainClusterCenter.y, mainClusterCenter.z);
+        const service4 = createMicroservice('API Gateway', 0x00ffff, mainClusterCenter.x + 1.5, mainClusterCenter.y, mainClusterCenter.z);
+        
         microservices.push(service1, service2, service3, service4);
         microservices.forEach(ms => datacenter.add(ms));
         serviceCountEl.textContent = microservices.length;
+        
+        // Додаємо початкові контейнери до відповідних сервісів
         addContainers(1, service1, true);
         addContainers(1, service2, true);
         addContainers(1, service3, true);
@@ -116,14 +114,23 @@ window.onload = () => {
     }
 
     function createServerRacks() {
-        const rackGeometry = new THREE.BoxGeometry(1.5, 4, 1.2);
-        const rackMaterial = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.8 });
-        const positions = [ [-5, 0, 0], [5, 0, 0] ];
-        positions.forEach(pos => {
-            const rack = new THREE.Mesh(rackGeometry, rackMaterial.clone());
-            rack.position.set(pos[0], 2, pos[1]);
-            datacenter.add(rack);
-        });
+        const rackGeometry = new THREE.BoxGeometry(2, 4.5, 1.5); // Зробимо їх трохи більшими
+        
+        // Основний кластер (трохи яскравіший)
+        const mainRackMaterial = new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.8 });
+        const mainRack = new THREE.Mesh(rackGeometry, mainRackMaterial);
+        mainRack.position.set(-5, 2.25, 0);
+        mainRack.userData = { name: 'Серверна стійка (Основна)' };
+        datacenter.add(mainRack);
+        serverRacks.push(mainRack);
+
+        // Резервний кластер (темніший, синюватий)
+        const backupRackMaterial = new THREE.MeshStandardMaterial({ color: 0x1d1d2b, roughness: 0.9 });
+        const backupRack = new THREE.Mesh(rackGeometry, backupRackMaterial);
+        backupRack.position.set(5, 2.25, 0);
+        backupRack.userData = { name: 'Серверна стійка (Резервна)' };
+        datacenter.add(backupRack);
+        serverRacks.push(backupRack);
     }
 
     function createMicroservice(name, color, x, y, z) {
