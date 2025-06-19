@@ -1,11 +1,10 @@
-// Файл: src/main.js (Повна об'єднана фінальна версія)
+// Файл: src/main.js (Виправлена версія з правильним порядком функцій)
 
 window.onload = () => {
     'use strict';
 
     // --- Перевірка завантаження бібліотек ---
     if (typeof THREE === 'undefined') { alert("Помилка: бібліотека Three.js не завантажилася!"); return; }
-    // GLTFLoader тут не потрібен, оскільки ми генеруємо геометрію
     if (typeof THREE.CSS2DRenderer === 'undefined') { alert("Помилка: бібліотека CSS2DRenderer не завантажилася!"); return; }
     if (typeof tf === 'undefined') { alert("Помилка: бібліотека TensorFlow.js не завантажилася!"); return; }
     console.log("✅ Всі бібліотеки успішно завантажені.");
@@ -38,6 +37,39 @@ window.onload = () => {
         }
     }
 
+    // --- Допоміжні функції (ПЕРЕМІЩЕНО ВГОРУ) ---
+    function onWindowResize() {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        labelRenderer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+        handleSimulation();
+
+        containers.forEach(container => {
+            if (container.userData.service) {
+                container.userData.orbitAngle += 0.02;
+                const service = container.userData.service;
+                const radius = container.userData.orbitRadius;
+                const angle = container.userData.orbitAngle;
+                container.position.x = service.position.x + Math.cos(angle) * radius;
+                container.position.z = service.position.z + Math.sin(angle) * radius;
+            }
+        });
+
+        microservices.forEach((service, index) => {
+            const pulse = Math.sin(simulationTime + index) * 0.05 + 1;
+            service.scale.set(pulse, pulse, pulse);
+        });
+
+        renderer.render(scene, camera);
+        labelRenderer.render(scene, camera);
+    }
+
     // --- Ініціалізація сцени ---
     function initializeScene() {
         scene = new THREE.Scene();
@@ -65,14 +97,12 @@ window.onload = () => {
         renderer.shadowMap.enabled = true;
         document.body.appendChild(renderer.domElement);
         
-        // Рендерер для тексту
         labelRenderer = new THREE.CSS2DRenderer();
         labelRenderer.setSize(window.innerWidth, window.innerHeight);
         labelRenderer.domElement.style.position = 'absolute';
         labelRenderer.domElement.style.top = '0px';
         document.body.appendChild(labelRenderer.domElement);
 
-        // Ініціалізуємо OrbitControls і прив'язуємо до верхнього шару
         initializeOrbitControls();
         controls = new THREE.OrbitControls(camera, labelRenderer.domElement);
         controls.target.set(0, 2, 0);
@@ -81,7 +111,7 @@ window.onload = () => {
         console.log("🎬 Сцена ініціалізована");
     }
 
-    // --- Створення сцени (твоя робоча логіка) ---
+    // --- Створення сцени ---
     function createDatacenter() {
         console.log("🏗️ Створюємо дата-центр та мікросервіси.");
         
@@ -155,20 +185,16 @@ window.onload = () => {
                 color: microservice.material.color, emissive: microservice.material.color, emissiveIntensity: 0.5
             });
             const container = new THREE.Mesh(containerGeometry, containerMaterial);
-
             const containerCount = microservice.userData.containers.length;
             const radius = 0.8;
             const angle = (containerCount * 1.2) + Math.random();
-            
             container.position.set(
                 microservice.position.x + Math.cos(angle) * radius,
                 microservice.position.y,
                 microservice.position.z + Math.sin(angle) * radius
             );
-            
             container.castShadow = true;
             container.userData = { service: microservice, orbitAngle: angle, orbitRadius: radius };
-            
             microservice.userData.containers.push(container);
             containers.push(container);
             datacenter.add(container);
@@ -176,7 +202,17 @@ window.onload = () => {
         containerCountEl.textContent = containers.length;
     }
 
-    // --- ML, симуляція, анімація та обробники ---
+    // --- Обробники подій ---
+    function setupEventHandlers() {
+        simButton.onclick = () => {
+            simulationActive = !simulationActive;
+            simButton.textContent = simulationActive ? "⏸️ Зупинити симуляцію" : "▶️ Симулювати навантаження";
+        };
+        // Тепер цей виклик буде працювати
+        window.addEventListener('resize', onWindowResize);
+    }
+
+    // --- ML, симуляція, анімація та вбудовані OrbitControls ---
     async function createAndTrainModel() {
         statusText.textContent = "🤖 Тренування ML...";
         let model = tf.sequential();
@@ -197,7 +233,7 @@ window.onload = () => {
         xs.dispose(); ys.dispose(); xs_reshaped.dispose();
         mlModel = model;
     }
-
+    
     async function handleSimulation() {
         if (!simulationActive) return;
         simulationTime += 0.05;
@@ -226,42 +262,6 @@ window.onload = () => {
         });
     }
 
-    function setupEventHandlers() {
-        simButton.onclick = () => {
-            simulationActive = !simulationActive;
-            simButton.textContent = simulationActive ? "⏸️ Зупинити симуляцію" : "▶️ Симулювати навантаження";
-        };
-        window.addEventListener('resize', onWindowResize);
-    }
-
-    function animate() {
-        requestAnimationFrame(animate);
-        controls.update();
-        handleSimulation();
-
-        // Анімація контейнерів
-        containers.forEach(container => {
-            if (container.userData.service) {
-                container.userData.orbitAngle += 0.02;
-                const service = container.userData.service;
-                const radius = container.userData.orbitRadius;
-                const angle = container.userData.orbitAngle;
-                container.position.x = service.position.x + Math.cos(angle) * radius;
-                container.position.z = service.position.z + Math.sin(angle) * radius;
-            }
-        });
-
-        // Пульсація мікросервісів
-        microservices.forEach((service, index) => {
-            const pulse = Math.sin(simulationTime + index) * 0.05 + 1;
-            service.scale.set(pulse, pulse, pulse);
-        });
-
-        renderer.render(scene, camera);
-        labelRenderer.render(scene, camera);
-    }
-    
-    // Вбудовані OrbitControls (твоя робоча версія)
     function initializeOrbitControls() {
         THREE.OrbitControls = function(object, domElement) {
             this.object = object;
