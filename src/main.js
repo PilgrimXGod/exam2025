@@ -16,6 +16,7 @@ window.onload = () => {
     const MIN_CONTAINERS = 4, MAX_CONTAINERS = 50;
     let isAutoMode = true;
     let isFailoverActive = false;
+    let isMoving = false; 
 
     const objectInfo = {
         'Серверна стійка (Основна)': 'Це основний "гарячий" кластер, що обробляє 100% запитів. Включає потужні обчислювальні вузли та швидку пам\'ять. Дублювання ключових сервісів тут забезпечує відмовостійкість (High Availability).',
@@ -88,7 +89,8 @@ window.onload = () => {
         datacenter.add(grid);
         createServerRacks();
         const mainRack = serverRacks.find(r => r.userData.isPrimary);
-        createAllMicroservices(mainRack);
+        // Створюємо мікросервіси відносно початкової позиції основного сервера
+        createAllMicroservices(mainRack.position);
     }
 
     function createServerRacks() {
@@ -107,19 +109,18 @@ window.onload = () => {
         serverRacks.push(backupRack);
     }
     
-    function createAllMicroservices(parentRack) {
-        const center = parentRack.position;
-        // ЗМІНЕНО: Розносимо сервіси далі один від одного
-        const r = 2.5; // Радіус
-        const service1 = createMicroservice('Аутентифікація', 0x00ff00, center.x, center.y, center.z + r);
-        const service2 = createMicroservice('Профілі', 0xffff00, center.x + r, center.y, center.z);
-        const service3 = createMicroservice('Платежі', 0xff0000, center.x, center.y, center.z - r);
-        const service4 = createMicroservice('API Gateway', 0x00ffff, center.x - r, center.y, center.z);
+    function createAllMicroservices(targetCenter) {
+        const r = 2.5;
+        const service1 = createMicroservice('Аутентифікація', 0x00ff00, targetCenter.x, targetCenter.y, targetCenter.z + r);
+        const service2 = createMicroservice('Профілі', 0xffff00, targetCenter.x + r, targetCenter.y, targetCenter.z);
+        const service3 = createMicroservice('Платежі', 0xff0000, targetCenter.x, targetCenter.y, targetCenter.z - r);
+        const service4 = createMicroservice('API Gateway', 0x00ffff, targetCenter.x - r, targetCenter.y, targetCenter.z);
         
         microservices = [service1, service2, service3, service4];
         microservices.forEach(ms => datacenter.add(ms));
         serviceCountEl.textContent = microservices.length;
         
+        // Додаємо початкові контейнери (вони автоматично прив'яжуться до сервісів)
         addContainers(1, service1, true);
         addContainers(1, service2, true);
         addContainers(1, service3, true);
@@ -213,6 +214,54 @@ window.onload = () => {
         scaleStep();
     }
 
+    function moveMicroservices(targetRack) {
+        isMoving = true;
+        const targetCenter = targetRack.position;
+        const r = 2.5;
+        const targetPositions = [
+            new THREE.Vector3(targetCenter.x, targetCenter.y, targetCenter.z + r),
+            new THREE.Vector3(targetCenter.x + r, targetCenter.y, targetCenter.z),
+            new THREE.Vector3(targetCenter.x, targetCenter.y, targetCenter.z - r),
+            new THREE.Vector3(targetCenter.x - r, targetCenter.y, targetCenter.z)
+        ];
+
+        microservices.forEach((ms, index) => {
+            // Використовуємо GSAP або просту анімацію для плавного переміщення
+            // Для простоти, зробимо поки що миттєве переміщення
+            // ms.position.copy(targetPositions[index]);
+            
+            // Плавна анімація (потребує requestAnimationFrame)
+            animateMovement(ms, targetPositions[index], 1.0, () => {
+                if (index === microservices.length - 1) {
+                    isMoving = false; // Анімація завершена
+                }
+            });
+        });
+    }
+
+    // НОВА ФУНКЦІЯ ДЛЯ АНІМАЦІЇ РУХУ
+    function animateMovement(object, targetPosition, duration, onComplete) {
+        const startPosition = object.position.clone();
+        const start = performance.now();
+        function moveStep() {
+            const elapsed = (performance.now() - start) / 1000;
+            const progress = Math.min(elapsed / duration, 1);
+            
+            // Рух по дузі для краси
+            const currentPos = new THREE.Vector3().lerpVectors(startPosition, targetPosition, progress);
+            currentPos.y += Math.sin(progress * Math.PI) * 2; // Висота дуги
+            
+            object.position.copy(currentPos);
+
+            if (progress < 1) {
+                requestAnimationFrame(moveStep);
+            } else {
+                if (onComplete) onComplete();
+            }
+        }
+        moveStep();
+    }
+
     // ЗМІНЕНО: Рух пакетів по дузі
     function createDataPacket() {
         if (microservices.length < 2) return;
@@ -249,6 +298,9 @@ window.onload = () => {
             simButton.textContent = simulationActive ? "⏸️ Зупинити симуляцію" : "▶️ Симулювати навантаження";
         };
         failoverBtn.onclick = () => {
+            // Перевіряємо, чи не йде вже анімація переміщення
+            if (isMoving) return; 
+
             isFailoverActive = !isFailoverActive;
             if (isFailoverActive) {
                 simulateFailure();
@@ -299,27 +351,30 @@ window.onload = () => {
     }
     
     function simulateFailure() {
-        statusText.textContent = "Збій основного кластера!";
         failoverBtn.textContent = "✅ Відновити систему";
+        statusText.textContent = "Збій! Переключення...";
+        
         const mainRack = serverRacks.find(r => r.userData.isPrimary);
         const backupRack = serverRacks.find(r => !r.userData.isPrimary);
+        
         mainRack.material.color.setHex(0x550000);
         mainRack.material.emissive.setHex(0x330000);
-        backupRack.material.color.setHex(0x333333);
-        clearAllMicroservices();
-        createAllMicroservices(backupRack);
+        
+        // Переміщуємо сервіси на резервний сервер
+        moveMicroservices(backupRack);
     }
 
     function repairSystem() {
-        statusText.textContent = "Система відновлена";
         failoverBtn.textContent = "🚨 Симулювати збій";
+        statusText.textContent = "Відновлення...";
+        
         const mainRack = serverRacks.find(r => r.userData.isPrimary);
-        const backupRack = serverRacks.find(r => !r.userData.isPrimary);
+        
         mainRack.material.color.setHex(0x333333);
         mainRack.material.emissive.setHex(0x000000);
-        backupRack.material.color.setHex(0x1d1d2b);
-        clearAllMicroservices();
-        createAllMicroservices(mainRack);
+        
+        // Переміщуємо сервіси назад на основний сервер
+        moveMicroservices(mainRack);
     }
 
     async function createAndTrainModel() {
